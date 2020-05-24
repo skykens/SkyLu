@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+   <FileVersion major="1" minor="6" />
+   <Project>
+      <Option title="Project" />
+      <Option makefile_is_custom="1" />
+      <Option compiler="gcc" />
+      <Option virtualFolders="CMake Files\;" />
+      <Build>
+      <Target title="all">
+         <Option working_dir="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 all" />
+            <CompileFile command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="rebuild_cache">
+         <Option working_dir="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache" />
+            <CompileFile command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="skylu">
+         <Option output="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/libskylu.a" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug" />
+         <Option object_output="./" />
+         <Option type="2" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/usr/include" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5/backward" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5/x86_64-redhat-linux" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/include" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 skylu" />
+            <CompileFile command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="skylu/fast">
+         <Option output="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/libskylu.a" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug" />
+         <Option object_output="./" />
+         <Option type="2" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/usr/include" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5/backward" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/../../../../include/c++/4.8.5/x86_64-redhat-linux" />
+            <Add directory="/usr/lib/gcc/x86_64-redhat-linux/4.8.5/include" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 skylu/fast" />
+            <CompileFile command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/gmake -f &quot;/tmp/tmp.vY2tNvHOvY/skylu/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      </Build>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/Daemon.cpp">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/Epoll.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/address.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/fdmanager.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/file.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/log.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/socket.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/thread.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/util.cc">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/Daemon.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/Epoll.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/address.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/fdmanager.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/file.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/log.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/socket.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/thread.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/util.h">
+      </Unit>
+      <Unit filename="/tmp/tmp.vY2tNvHOvY/skylu/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+   </Project>
+</CodeBlocks_project_file>
