@@ -301,6 +301,7 @@ size_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
     if(::shutdown(m_fd,SHUT_WR)<0){
         SKYLU_LOG_ERROR(G_LOGGER)<<"socket("<<m_fd<<") shut downWrite";
     }
+ //   SKYLU_LOG_INFO(G_LOGGER)<<"socket("<<m_fd<<") shutdown";
 
 
     }

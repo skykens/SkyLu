@@ -39,8 +39,9 @@ namespace skylu{
     };
 
 
-    HttpResponse::HttpResponse(int statusCode, const std::string &path, bool keepAlive)
-            :m_status(statusCode)
+    HttpResponse::HttpResponse(std::string version,int statusCode, const std::string &path, bool keepAlive)
+            :m_version(version)
+            ,m_status(statusCode)
             ,m_path(path)
             ,isKeepAlive(keepAlive){
 
@@ -88,12 +89,16 @@ namespace skylu{
         body += "<hr><em>Skylu web server</em></body></html>";
 
         // 响应行
-        output.append("HTTP/1.1 " + std::to_string(m_status) + " " + it -> second + "\r\n");
+        output.append(m_version+" " + std::to_string(m_status) + " " + it -> second + "\r\n");
         // 报文头
         output.append("Server: Skylu\r\n");
         output.append("Content-type: text/html\r\n");
-        output.append("Connection: close\r\n");
-        output.append("Content-length: " + std::to_string(body.size()) + "\r\n\r\n");
+        if(isKeepAlive){
+            output.append("Content-length: " + std::to_string(body.size()) + "\r\n\r\n");
+        }else{
+            output.append("\r\n");
+        }
+           // output.append("Connection: close\r\n");
         // 报文体
         output.append(body.data(),body.size());
     }

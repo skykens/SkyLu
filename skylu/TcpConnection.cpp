@@ -137,9 +137,6 @@ namespace skylu{
 
     void TcpConnection::sendInLoop(const void *data, size_t len) {
         assert(m_loop->isInLoopThread());
-        std::string tmp;
-        tmp.assign(static_cast<const char *>(data), static_cast<const char *>(data)+len);
-        SKYLU_LOG_INFO(G_LOGGER)<<"send message:"<<tmp;
         ssize_t nwrite = 0;
         size_t remaning = len;
         bool Error=false;

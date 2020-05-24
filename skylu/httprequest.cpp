@@ -99,10 +99,30 @@ namespace skylu{
             value.pop_back(); //去除后面的空格
         }
         m_header[fild] = value; //可优化为move
+
+    }
+
+    std::string HttpRequest::getVersion(Version ver) {
+        switch (ver) {
+#define XX(name,str) \
+    case Version::name: \
+        return str;  \
+        break;
+
+
+            XX(HTTP10,"HTTP/1.0");
+            XX(HTTP11,"HTTP/1.1");
+            default:
+                return "UNKNOW";
+
+#undef XX
+
+
+        }
+
     }
 
     std::string HttpRequest::getMethod() const {
-        std::string ret;
         switch(m_method){
 #define XX(name) \
         case Method::name: \
@@ -133,6 +153,20 @@ namespace skylu{
     bool HttpRequest::isKeepAlive() const {
         std::string  fild = getHeader("Connection");
         return fild == "Keep-Alive" || (m_version == HTTP11&&fild != "close");
+    }
+
+    int HttpRequest::getTimeout() const {
+
+        if(!isKeepAlive()){
+            return 0;
+
+        }
+        std::string timeout = getHeader("Keep-Alive");
+        if(timeout.empty()){
+            return -1;
+        }
+        return atoi(timeout.c_str());
+
     }
 
 

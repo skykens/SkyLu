@@ -14,7 +14,7 @@ class HttpResponse {
 public:
     static const std::unordered_map<int,std::string> statusCodeAndMessage;
     static const std::unordered_map<std::string,std::string> suffixAndName;
-    HttpResponse(int statusCode,const std::string &path,bool keepAlive);
+    HttpResponse(std::string version,int statusCode,const std::string &path,bool keepAlive);
     ~HttpResponse() = default;
 
     Buffer initResponse();
@@ -26,6 +26,7 @@ private:
 
 
 private:
+    std::string m_version;
     std::map<std::string,std::string> m_header;
     int m_status;
     std::string m_path;

@@ -30,23 +30,29 @@ namespace skylu{
 
 
     void HttpServer::doRequest(const TcpConnection::ptr &conne, Buffer *buf, Timestamp time) {
-        HttpRequest requese(buf);
-        if(requese.parseRequest()){
+        HttpRequest request(buf);
+        if(request.parseRequest()){
 
-            ++m_count_timers[conne.get()];
-            HttpResponse response(200,requese.getPath(),requese.isKeepAlive());
+           // ++m_count_timers[conne.get()];
+            HttpResponse response(request.getVersion(),200,request.getPath(),request.isKeepAlive());
 
             Buffer tmpbuf = std::move(response.initResponse());
             conne->send(&tmpbuf);
+            int timeout = request.getTimeout();
+            if(timeout == 0){
+                conne->shutdown();
+            }else if(timeout > 0){
+                m_loop->runAfter(static_cast<double>(timeout),std::bind(&HttpServer::closeConnection,this,conne));
+            }
 
 
         }else{
-            HttpResponse response(400,"",requese.isKeepAlive());
+            HttpResponse response(request.getVersion(),400,"",request.isKeepAlive());
 
             Buffer tmpbuf = std::move(response.initResponse());
             conne->send(&tmpbuf);
             conne->shutdown();
-            m_count_timers.erase(conne.get());
+           // m_count_timers.erase(conne.get());
         }
 
 
@@ -58,6 +64,7 @@ namespace skylu{
     }
 
     void HttpServer::doNewConnection(const TcpConnection::ptr &conne) {
+
      //   Eventloop * loop = conne->getLoop();
      //   loop->runAfter(5,std::bind(&HttpServer::closeConnection,this,conne));
  //       assert(m_count_timers.find(conne.get()) == m_count_timers.end());
@@ -66,12 +73,8 @@ namespace skylu{
     }
 
     void HttpServer::closeConnection(const TcpConnection::ptr &conne) {
-        if(m_count_timers.find(conne.get()) == m_count_timers.end())
-            return ;
-        if(--m_count_timers[conne.get()] <= 0){
-            SKYLU_LOG_INFO(G_LOGGER)<<"connection destroy";
+        conne->shutdown();
 
-        }
     }
 
 

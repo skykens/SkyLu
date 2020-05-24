@@ -46,6 +46,9 @@ namespace skylu{
         std::string getArg()const {return m_arg;}
         std::string getHeader(const std::string &fild)const;
         std::string getMethod()const ;
+        int getTimeout()const;
+        std::string getVersion() const {return getVersion(m_version);}
+        static std::string getVersion(Version ver);
         bool isKeepAlive()const;
 
 
