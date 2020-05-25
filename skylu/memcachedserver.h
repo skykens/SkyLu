@@ -29,7 +29,7 @@
 namespace skylu {
 
     class MemcachedServer : Nocopyable {
-        struct Node{
+        struct Node :Nocopyable{
             Node():flag(0){}
             int flag;
             std::string val;
