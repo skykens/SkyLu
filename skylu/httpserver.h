@@ -21,7 +21,7 @@ public:
     void run();
 
 private:
-    void doRequest(const TcpConnection::ptr& conne,Buffer * buf,Timestamp time);
+    void doRequest(const TcpConnection::ptr& conne,Buffer * buf);
     void doNewConnection(const TcpConnection::ptr &conne);
     void closeConnection(const TcpConnection::ptr &conne);
 

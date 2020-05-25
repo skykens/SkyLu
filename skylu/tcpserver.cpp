@@ -8,7 +8,7 @@
 
 namespace skylu{
 
-    TcpServer::Acceptor::Acceptor(Eventloop *loop, const Address::ptr listenAddr)
+    TcpServer::Acceptor::Acceptor(Eventloop *loop, const Address::ptr &listenAddr)
         :m_loop(loop)
         ,m_socket(Socket::CreateTCP(listenAddr))
         ,m_acceptChannel(loop,m_socket->getSocket())
@@ -39,7 +39,7 @@ namespace skylu{
     }
 
 
-    TcpServer::TcpServer(Eventloop *loop, const Address::ptr address,const std::string &name)
+    TcpServer::TcpServer(Eventloop *loop, const Address::ptr & address,const std::string &name)
             :m_loop(loop)
             ,m_name(name)
             ,m_acceptor(new TcpServer::Acceptor(loop,address))

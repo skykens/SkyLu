@@ -19,7 +19,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
         class Acceptor: Nocopyable{
         public:
             typedef std::function<void(Socket::ptr sock)>NewConnectionCallback;
-            Acceptor(Eventloop *loop,const Address::ptr listenAddr);
+            Acceptor(Eventloop *loop,const Address::ptr & listenAddr);
             ~Acceptor() = default;
 
 
@@ -45,7 +45,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
         };
     public:
 
-        TcpServer(Eventloop * loop,const Address::ptr address,const std::string &name);
+        TcpServer(Eventloop * loop,const Address::ptr& address,const std::string &name);
         ~TcpServer() {}
         void start();
         void setConnectionCallback(const TcpConnection::ConnectionCallback &cb){m_connection_cb = cb;}

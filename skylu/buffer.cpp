@@ -30,7 +30,7 @@ namespace skylu{
         }else if(static_cast<size_t>(n)<= writeable){
             hasWriteten(n);
         }else{
-            hasWriteten(m_queue.size());
+            hasWriteten(writeable);
             append(extrabuf,n-writeable);
         }
         return n;

@@ -15,7 +15,7 @@ namespace skylu{
             ,m_channel(new Channel(m_loop,m_socket->getSocket()))
             ,m_name(name),
             m_highMark(64*1024*1024){  //高水位的位置应该是64K
-        m_channel->setReadCallback(std::bind(&TcpConnection::handleRead,this,std::placeholders::_1));
+        m_channel->setReadCallback(std::bind(&TcpConnection::handleRead,this));
         m_channel->setErrorCallback(std::bind(&TcpConnection::handleError,this));
         m_channel->setCloseCallback(std::bind(&TcpConnection::handleClose,this));
         m_channel->setWriteCallback(std::bind(&TcpConnection::handleWrite,this));
@@ -49,13 +49,13 @@ namespace skylu{
         }
 
     }
-    void TcpConnection::handleRead(Timestamp receiveTime) {
+    void TcpConnection::handleRead() {
 
         assert(m_loop->isInLoopThread());
         int savedError;
         ssize_t  n = m_input_buffer.readFd(m_channel->getFd(),&savedError);
         if(n > 0){
-            m_message_cb(shared_from_this(),&m_input_buffer,receiveTime);
+            m_message_cb(shared_from_this(),&m_input_buffer);
 
         }else if(n == 0){
             handleClose();
@@ -84,7 +84,8 @@ namespace skylu{
         if(m_state == kConnected){
             setState(kdisConnected);
             m_channel->disableAll();
-            m_connection_cb(shared_from_this());
+            if(m_connection_cb)
+                m_connection_cb(shared_from_this());
         }
         m_channel->remove();
     }
@@ -93,7 +94,8 @@ namespace skylu{
         assert(m_state == kConnceting);
         setState(kConnected);
         m_channel->enableReading();
-        m_connection_cb(shared_from_this());
+        if(m_connection_cb)
+            m_connection_cb(shared_from_this());
 
     }
     void TcpConnection::shutdown() {
@@ -110,6 +112,9 @@ namespace skylu{
         }
     }
 
+    void TcpConnection::send(const std::string & message){
+        send(message.data(),message.size());
+    }
     void TcpConnection::send(const void *message, size_t len) {
         if(m_state == kConnected){
             if(m_loop->isInLoopThread()){

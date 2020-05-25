@@ -10,9 +10,10 @@ namespace skylu{
             ,m_server(loop,address,name)
             ,m_name(name)
             ,isStart(false){
-        m_server.setMessageCallback(std::bind(&HttpServer::doRequest,this
-                            ,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
+
+
         m_server.setConnectionCallback(std::bind(&HttpServer::doNewConnection,this,std::placeholders::_1));
+        m_server.setMessageCallback(std::bind(&HttpServer::doRequest,this,std::placeholders::_1,std::placeholders::_2));
 
 
     }
@@ -29,7 +30,7 @@ namespace skylu{
     }
 
 
-    void HttpServer::doRequest(const TcpConnection::ptr &conne, Buffer *buf, Timestamp time) {
+    void HttpServer::doRequest(const TcpConnection::ptr &conne, Buffer *buf) {
         HttpRequest request(buf);
         if(request.parseRequest()){
 

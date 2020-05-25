@@ -25,7 +25,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
     public:
         typedef std::shared_ptr<TcpConnection> ptr;
         typedef std::function<void(const TcpConnection::ptr&)> ConnectionCallback;
-        typedef std::function<void(const TcpConnection::ptr&,Buffer *,Timestamp)> MessageCallback;
+        typedef std::function<void(const TcpConnection::ptr&,Buffer *)> MessageCallback;
         typedef std::function<void(const TcpConnection::ptr&)> CloseCallback;
         typedef std::function<void(const TcpConnection::ptr&)> WriteCompleteCallback;
         typedef std::function<void(const TcpConnection::ptr& ,size_t)> HighWaterMarkCallback;
@@ -76,6 +76,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         void connectEstablished();
         void connectDestroyed();
 
+        void send(const std::string & message);
         void send(const void *message,size_t len);
         void send(Buffer *buf);
 
@@ -90,7 +91,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
          *  各类IO事件触发后的回调函数 （绑定在channel）
          * @param receiveTime
          */
-        void handleRead(Timestamp receiveTime);
+        void handleRead();
         void handleWrite();
         void handleClose();
         void handleError();
