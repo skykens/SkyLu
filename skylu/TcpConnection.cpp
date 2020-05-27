@@ -55,7 +55,9 @@ namespace skylu{
         int savedError;
         ssize_t  n = m_input_buffer.readFd(m_channel->getFd(),&savedError);
         if(n > 0){
-            m_message_cb(shared_from_this(),&m_input_buffer);
+            if(m_message_cb){
+                m_message_cb(shared_from_this(),&m_input_buffer);
+            }
 
         }else if(n == 0){
             handleClose();
@@ -182,6 +184,7 @@ namespace skylu{
             m_output_buffer.append(static_cast<const char*>(data)+nwrite,remaning);
             if(!m_channel->isWriting()){
                 m_channel->enableWriting();
+                SKYLU_LOG_INFO(G_LOGGER)<<"write too large";
             }
         }
 

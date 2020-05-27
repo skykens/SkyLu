@@ -7,5 +7,5 @@ set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic -O0 -g -std=c++11 -Wall -Wno-depre
 aux_source_directory(. DIR_SRCS)
 add_subdirectory(skylu)
 
-add_executable(hashtest main.cpp )
+add_executable(hashtest main.cpp)
 target_link_libraries(hashtest skylu pthread)
