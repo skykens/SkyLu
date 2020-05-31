@@ -9,7 +9,7 @@
 #include <sys/epoll.h>
 
 namespace skylu{
-        Epoller::Epoller(Eventloop *loop)
+        Epoller::Epoller(EventLoop *loop)
         :Poll(loop)
         ,m_fd(::epoll_create1(EPOLL_CLOEXEC))
         ,m_retevent(kInitSize){

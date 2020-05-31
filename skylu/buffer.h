@@ -39,7 +39,7 @@ namespace skylu {
          *可读字节数
          * @return
          */
-        size_t readabelBytes() const { return m_wpos - m_rpos;}
+        size_t readableBytes() const { return m_wpos - m_rpos;}
 
         /**
          * 可写字节数
@@ -104,8 +104,8 @@ namespace skylu {
         }
 
         void updatePos(size_t len){
-            assert(len <= readabelBytes());
-            if(len < readabelBytes()){
+            assert(len <= readableBytes());
+            if(len < readableBytes()){
                 m_rpos += len;
 
             }else{
@@ -157,11 +157,11 @@ namespace skylu {
 
             }else{
                 assert(kInitPos < m_rpos);
-                size_t readable = readabelBytes();
+                size_t readable = readableBytes();
                 std::copy(begin()+m_rpos,begin()+m_wpos,begin()+kInitPos);
                 m_rpos = kInitPos;
                 m_wpos = m_rpos + readable;
-                assert(readable == readabelBytes());
+                assert(readable == readableBytes());
             }
 
         }

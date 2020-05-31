@@ -141,6 +141,9 @@ bool Socket::connect(const Address::ptr addr,uint64_t timeoutMS){
     
 }
 bool Socket::close(){
+    if(m_fd < 0 || !isValid()){
+        return true;
+    }
     if(::close(m_fd)== 0)
     {
         m_isVaild = false;
@@ -298,6 +301,9 @@ size_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
     }
 
     void Socket::shoutdownWriting() {
+    if(m_fd < 0 || !m_isVaild){
+        return ;
+    }
     if(::shutdown(m_fd,SHUT_WR)<0){
         SKYLU_LOG_ERROR(G_LOGGER)<<"socket("<<m_fd<<") shut downWrite";
     }

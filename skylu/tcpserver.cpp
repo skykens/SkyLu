@@ -3,12 +3,11 @@
 //
 
 #include "tcpserver.h"
-#include "eventloopthreadpool.h"
 #include <assert.h>
 
 namespace skylu{
 
-    TcpServer::Acceptor::Acceptor(Eventloop *loop, const Address::ptr &listenAddr)
+    TcpServer::Acceptor::Acceptor(EventLoop *loop, const Address::ptr &listenAddr)
         :m_loop(loop)
         ,m_socket(Socket::CreateTCP(listenAddr))
         ,m_acceptChannel(loop,m_socket->getSocket())
@@ -39,7 +38,7 @@ namespace skylu{
     }
 
 
-    TcpServer::TcpServer(Eventloop *loop, const Address::ptr & address,const std::string &name)
+    TcpServer::TcpServer(EventLoop *loop, const Address::ptr & address,const std::string &name)
             :m_loop(loop)
             ,m_name(name)
             ,m_acceptor(new TcpServer::Acceptor(loop,address))
@@ -63,7 +62,7 @@ namespace skylu{
         assert(m_loop->isInLoopThread());
         size_t n = m_connections.erase(conn->getName());
         assert(n == 1);
-        Eventloop * ioloop = conn->getLoop();
+        EventLoop * ioloop = conn->getLoop();
         ioloop->queueInLoop(std::bind(&TcpConnection::connectDestroyed,conn));
 
     }
@@ -72,14 +71,13 @@ namespace skylu{
 
         static int64_t  count = 1;
         std::string name = m_name + "#" +std::to_string(count++);
-        Eventloop * ioloop = m_threadpool->getNextLoop();
+        EventLoop * ioloop = m_threadpool->getNextLoop();
         TcpConnection::ptr conne(new TcpConnection(ioloop,socket,name));
         m_connections[name] = conne;
         conne->setConnectionCallback(m_connection_cb);
         conne->setMessageCallback(m_message_cb);
         //这里需要绑定一下关闭连接的回调函数
-        TcpConnection::CloseCallback tmpcb = std::bind(&TcpServer::removeConnection,this,std::placeholders::_1);
-        conne->setCloseCallback(tmpcb);
+        conne->setCloseCallback(std::bind(&TcpServer::removeConnection,this,std::placeholders::_1));
         ioloop->runInLoop(std::bind(&TcpConnection::connectEstablished,conne));
 
 

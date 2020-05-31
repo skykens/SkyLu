@@ -23,10 +23,10 @@ namespace skylu{
             m_thread.join();
         }
     }
-    Eventloop * EventLoopThread::startLoop() {
+    EventLoop * EventLoopThread::startLoop() {
         assert(!m_thread.isStart());
         m_thread.start();
-        Eventloop *loop = NULL;
+        EventLoop *loop = NULL;
         {
             Mutex::Lock lock(m_mutex);
             while(m_loop ==NULL ){
@@ -38,7 +38,7 @@ namespace skylu{
     }
 
     void EventLoopThread::ThreadFunc() {
-        Eventloop loop;
+        EventLoop loop;
         if(m_callback){
             m_callback(&loop);
 

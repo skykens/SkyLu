@@ -10,7 +10,7 @@
 #include <time.h>
 #include <functional>
 #include <atomic>
-#include "Timestamp.h"
+#include "timestamp.h"
 
 #include "nocopyable.h"
 namespace skylu{

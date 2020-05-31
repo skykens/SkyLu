@@ -8,7 +8,7 @@
 
 #include "socket.h"
 #include "nocopyable.h"
-#include "TcpConnection.h"
+#include "tcpconnection.h"
 #include "eventloopthreadpool.h"
 #include "eventloop.h"
 #include <memory>
@@ -19,7 +19,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
         class Acceptor: Nocopyable{
         public:
             typedef std::function<void(Socket::ptr sock)>NewConnectionCallback;
-            Acceptor(Eventloop *loop,const Address::ptr & listenAddr);
+            Acceptor(EventLoop *loop,const Address::ptr & listenAddr);
             ~Acceptor() = default;
 
 
@@ -35,7 +35,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
             void handleRead();
 
         private:
-            Eventloop * m_loop;
+            EventLoop * m_loop;
             Socket::ptr m_socket;
             Channel m_acceptChannel;
             NewConnectionCallback  m_connection_cb;
@@ -45,7 +45,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
         };
     public:
 
-        TcpServer(Eventloop * loop,const Address::ptr& address,const std::string &name);
+        TcpServer(EventLoop * loop,const Address::ptr& address,const std::string &name);
         ~TcpServer() {}
         void start();
         void setConnectionCallback(const TcpConnection::ConnectionCallback &cb){m_connection_cb = cb;}
@@ -65,7 +65,7 @@ class TcpServer :Nocopyable , public std::enable_shared_from_this<TcpServer> {
 
 
     private:
-        Eventloop *m_loop;
+        EventLoop *m_loop;
         const std::string m_name;
         std::unique_ptr<Acceptor> m_acceptor;
         TcpConnection::ConnectionCallback m_connection_cb;

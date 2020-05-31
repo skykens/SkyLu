@@ -10,7 +10,7 @@
 #include "timer.h"
 #include <sys/types.h>
 #include <sys/timerfd.h>
-#include "Timestamp.h"
+#include "timestamp.h"
 #include "timerid.h"
 #include <memory>
 #include <set>
@@ -22,7 +22,7 @@ namespace skylu{
         typedef std::pair<Timer*,int64_t > ActiveTimer;
         typedef std::set<ActiveTimer > ActiveTimerSet;
     public:
-        TimerQueue(Eventloop * loop);
+        TimerQueue(EventLoop * loop);
         ~TimerQueue();
 
         Timerid addTimer(const Timer::TimerCallback &cb,Timestamp when,double interval);
@@ -43,7 +43,7 @@ namespace skylu{
         void addTimerInLoop(Timer*  timer);
     private:
 
-        Eventloop* m_loop;
+        EventLoop* m_loop;
         const int m_timerfd;
         Channel m_timerfdChannel;
         TimerSet m_timers;;

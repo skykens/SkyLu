@@ -14,7 +14,7 @@ namespace skylu{
     const int Channel::kWriteEvent = POLLOUT;
 
 
-    Channel::Channel(Eventloop *loop, int fd)
+    Channel::Channel(EventLoop *loop, int fd)
             :m_loop(loop)
             ,m_fd(fd)
             ,m_events(0)

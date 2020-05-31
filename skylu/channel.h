@@ -6,24 +6,24 @@
 #define HASHTEST_CHANNEL_H
 
 #include "nocopyable.h"
-#include "Timestamp.h"
+#include "timestamp.h"
 #include <functional>
 #include <sys/types.h>
 #include <memory>
 namespace skylu{
-    class Eventloop;
+    class EventLoop;
     class Channel: Nocopyable {
     public:
         typedef std::shared_ptr<Channel> ptr;
         typedef std::function<void()> EventCallback;
         typedef std::function<void(Timestamp &)> ReadEventCallback;
-        Channel(Eventloop * loop,int fd);
+        Channel(EventLoop * loop,int fd);
         ~Channel();
         void handleEvent(Timestamp & receiveTime);
-        void setReadCallback(const ReadEventCallback & cb){m_readCallback = cb;}
-        void setWriteCallback(const EventCallback& cb){m_writeCallback = cb;}
-        void setErrorCallback(const EventCallback& cb){m_errorCallback = cb;}
-        void setCloseCallback(const EventCallback& cb){m_closeCallback = cb;}
+        void setReadCallback(ReadEventCallback cb){m_readCallback = std::move(cb);}
+        void setWriteCallback(EventCallback cb){m_writeCallback = std::move(cb);}
+        void setErrorCallback(EventCallback cb){m_errorCallback = std::move(cb);}
+        void setCloseCallback(EventCallback cb){m_closeCallback = std::move(cb);}
 
         int getFd()const {return m_fd;}
         int getEvent()const {return m_events;}
@@ -44,7 +44,7 @@ namespace skylu{
         int getIndex()const{return m_index;}
         void setIndex(int index){m_index = index;}
 
-        Eventloop *ownerLoop(){return m_loop;}
+        EventLoop *ownerLoop(){return m_loop;}
 
     private:
         void update();
@@ -53,7 +53,7 @@ namespace skylu{
         static const int kReadEvent;
         static const int kWriteEvent;
 
-        Eventloop* m_loop;
+        EventLoop* m_loop;
         const int m_fd;
         int m_events;
         int m_retevents;

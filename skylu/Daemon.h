@@ -46,7 +46,7 @@ public:
      */
     static void hook(int sig,std::function<void()> fun){
         maps[sig] = fun;
-        ::signal(sig,Signal::hanlder);
+        ::signal(sig,hanlder);
     }
 private:
     /*

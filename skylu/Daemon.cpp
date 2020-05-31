@@ -1,4 +1,4 @@
-#include "Daemon.h"
+#include "daemon.h"
 #include <errno.h>
 #include <sys/stat.h>
 #include <signal.h>

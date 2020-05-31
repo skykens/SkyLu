@@ -12,7 +12,7 @@
 #include "nocopyable.h"
 #include "buffer.h"
 #include "channel.h"
-#include "Timestamp.h"
+#include "timestamp.h"
 #include <string>
 namespace skylu{
 class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnection>{
@@ -29,18 +29,18 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         typedef std::function<void(const TcpConnection::ptr&)> CloseCallback;
         typedef std::function<void(const TcpConnection::ptr&)> WriteCompleteCallback;
         typedef std::function<void(const TcpConnection::ptr& ,size_t)> HighWaterMarkCallback;
-        TcpConnection(Eventloop * loop,Socket::ptr socket,const std::string&name);
+        TcpConnection(EventLoop * loop,Socket::ptr socket,const std::string&name);
         ~TcpConnection() = default;
 
         /**
          * 设置各类回调函数
          * @param cb
          */
-        void setConnectionCallback(ConnectionCallback &cb){m_connection_cb = cb;}
-        void setMessageCallback(MessageCallback &cb){m_message_cb = cb;}
-        void setCloseCallback(CloseCallback &cb){m_close_cb = cb;}
-        void setWriteCompleteCallback(WriteCompleteCallback &cb){m_writecomplete_cb = cb;}
-        void setHighWaterCallback(HighWaterMarkCallback &cb,size_t len){m_highwater_cb = cb;m_highMark = len;}
+        void setConnectionCallback(const ConnectionCallback &cb){m_connection_cb = cb;}
+        void setMessageCallback(const MessageCallback &cb){m_message_cb = cb;}
+        void setCloseCallback(const CloseCallback &cb){m_close_cb = cb;}
+        void setWriteCompleteCallback(const WriteCompleteCallback &cb){m_writecomplete_cb = cb;}
+        void setHighWaterCallback(const HighWaterMarkCallback &cb,size_t len){m_highwater_cb = cb;m_highMark = len;}
 
 
         /**
@@ -53,7 +53,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
 
 
         const std::string getName()const {return m_name;}
-        Eventloop * getLoop(){return m_loop;}
+        EventLoop * getLoop(){return m_loop;}
         const std::string getStateForString()const{
             switch (m_state) {
 #define XX(state) \
@@ -104,7 +104,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
 
     private:
         State m_state;
-        Eventloop *m_loop;
+        EventLoop *m_loop;
         Socket::ptr m_socket;
         Channel::ptr m_channel;
         ConnectionCallback m_connection_cb;

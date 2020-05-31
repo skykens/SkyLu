@@ -19,7 +19,7 @@ namespace skylu{
     class Connector :Nocopyable{
     public:
         typedef std::function<void(int socket)> NewConnectionCallback;
-        Connector(Eventloop *loop,const Address::ptr addr);
+        Connector(EventLoop *loop,const Address::ptr addr);
         ~Connector();
         void setNewConnectionCallback(NewConnectionCallback &cb){m_newconnection_cb = cb;}
         void start();

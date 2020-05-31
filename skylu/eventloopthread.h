@@ -2,8 +2,8 @@
 // Created by jimlu on 2020/5/19.
 //
 
-#ifndef HASHTEST_EVENTLOOPTHREAD_H
-#define HASHTEST_EVENTLOOPTHREAD_H
+#ifndef HASHTEST_EventLoopTHREAD_H
+#define HASHTEST_EventLoopTHREAD_H
 
 #include "thread.h"
 #include "eventloop.h"
@@ -13,21 +13,21 @@
 namespace skylu{
 class EventLoopThread {
 public:
-    typedef std::function<void(Eventloop*)> ThreadInitCallback;
+    typedef std::function<void(EventLoop*)> ThreadInitCallback;
     typedef std::shared_ptr<EventLoopThread> ptr;
 
     EventLoopThread(const ThreadInitCallback & cb ,const std::string & name);
 
     ~EventLoopThread();
 
-    Eventloop * startLoop();
+    EventLoop * startLoop();
 
 
 private:
     void ThreadFunc();
 
 private:
-    Eventloop * m_loop;
+    EventLoop * m_loop;
     Thread m_thread;
     Mutex m_mutex;
     bool isExit;
@@ -44,4 +44,4 @@ private:
 
 }
 
-#endif //HASHTEST_EVENTLOOPTHREAD_H
+#endif //HASHTEST_EventLoopTHREAD_H

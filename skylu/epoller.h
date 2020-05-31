@@ -23,7 +23,7 @@ namespace skylu{
             kAdd = 0,  //对应kNoneEvent
             kDel
         };
-        Epoller(Eventloop * loop);
+        Epoller(EventLoop * loop);
         ~Epoller();
         Timestamp poll(int timeoutMS, ChannelList &activeChannel) override;
         void removeChannel(Channel *channel) override;

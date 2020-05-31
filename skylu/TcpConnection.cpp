@@ -2,13 +2,13 @@
 // Created by jimlu on 2020/5/20.
 //
 
-#include "TcpConnection.h"
+#include "tcpconnection.h"
 #include "log.h"
 #include <assert.h>
 #include <functional>
 #include <algorithm>
 namespace skylu{
-    TcpConnection::TcpConnection(Eventloop *loop, Socket::ptr socket,const std::string & name)
+    TcpConnection::TcpConnection(EventLoop *loop, Socket::ptr socket,const std::string & name)
             :m_state(kConnceting)
             ,m_loop(loop)
             ,m_socket(socket)
@@ -19,17 +19,16 @@ namespace skylu{
         m_channel->setErrorCallback(std::bind(&TcpConnection::handleError,this));
         m_channel->setCloseCallback(std::bind(&TcpConnection::handleClose,this));
         m_channel->setWriteCallback(std::bind(&TcpConnection::handleWrite,this));
-
     }
 
     void TcpConnection::handleWrite() {
 
         assert(m_loop->isInLoopThread());
         if(m_channel->isWriting()){
-            ssize_t n = ::write(m_channel->getFd(),m_output_buffer.curRead(),m_output_buffer.readabelBytes());
+            ssize_t n = ::write(m_channel->getFd(),m_output_buffer.curRead(),m_output_buffer.readableBytes());
             if(n > 0){
                 m_output_buffer.updatePos(n);
-                if(m_output_buffer.readabelBytes() == 0){
+                if(m_output_buffer.readableBytes() == 0){
                     m_channel->disableWriting();
                     if(m_writecomplete_cb){
                         m_loop->queueInLoop(std::bind(m_writecomplete_cb,shared_from_this()));
@@ -131,11 +130,11 @@ namespace skylu{
     void TcpConnection::send(Buffer *buf) {
         if(m_state == kConnected){
             if(m_loop->isInLoopThread()){
-                sendInLoop(buf->curRead(),buf->readabelBytes());
+                sendInLoop(buf->curRead(),buf->readableBytes());
                 buf->resetAll();
             }else{
                 m_loop->runInLoop(std::bind(&TcpConnection::sendInLoop,
-                        this,buf->curRead(),buf->readabelBytes()));
+                        this,buf->curRead(),buf->readableBytes()));
                 buf->resetAll();
             }
         }
@@ -151,7 +150,7 @@ namespace skylu{
             SKYLU_LOG_WARN(G_LOGGER)<<"disconnected ,give up writing";
             return ;
         }
-        if(!m_channel->isWriting() && m_output_buffer.readabelBytes() == 0){
+        if(!m_channel->isWriting() && m_output_buffer.readableBytes() == 0){
             nwrite = ::write(m_socket->getSocket(),data,len);
 
             if(nwrite >= 0){
@@ -175,7 +174,7 @@ namespace skylu{
 
         assert(nwrite>=0);
         if(!Error && remaning > 0){
-            size_t oldlen = m_output_buffer.readabelBytes();
+            size_t oldlen = m_output_buffer.readableBytes();
             if(oldlen + remaning >= m_highMark
                     && oldlen < m_highMark
                     && m_highwater_cb){

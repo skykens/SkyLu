@@ -12,8 +12,8 @@
 #include <sys/eventfd.h>
 
 namespace skylu{
-    const int Eventloop::kPollTimeMS = 5;
-    thread_local Eventloop* t_loopInThread = 0;
+    const int EventLoop::kPollTimeMS = 5;
+    thread_local EventLoop* t_loopInThread = 0;
 
     int createEventfd()
     {
@@ -24,7 +24,7 @@ namespace skylu{
         }
         return evtfd;
     }
-    Eventloop::Eventloop()
+    EventLoop::EventLoop()
         :isLooping(false)
         ,m_threadid(getThreadId())
         ,m_poll(defaultNewPoll(this))
@@ -34,29 +34,29 @@ namespace skylu{
 
         SKYLU_LOG_DEBUG(G_LOGGER)<<"Event Loop create "<<this<<"in thread "<<m_threadid;
         if(t_loopInThread){
-            SKYLU_LOG_DEBUG(G_LOGGER)<<"Anther Eventloop  "<<t_loopInThread
+            SKYLU_LOG_DEBUG(G_LOGGER)<<"Anther EventLoop  "<<t_loopInThread
                         <<"  exists in this thread" <<m_threadid;
         }else{
             t_loopInThread = this;
 
 
         }
-        m_wakeupChannel->setReadCallback(std::bind(&Eventloop::handleRead,this));
+        m_wakeupChannel->setReadCallback(std::bind(&EventLoop::handleRead,this));
         m_wakeupChannel->enableReading();
 
     }
-    Eventloop::~Eventloop() {
+    EventLoop::~EventLoop() {
         assert(!isLooping);
     }
-    void Eventloop::assertInLoopThread() {
+    void EventLoop::assertInLoopThread() {
         assert(isInLoopThread());;
     }
 
-    Eventloop * Eventloop::getEventLoopOfCurrentThread() {
+    EventLoop * EventLoop::getEventLoopOfCurrentThread() {
         return t_loopInThread;
     }
 
-    void Eventloop::loop() {
+    void EventLoop::loop() {
         assert(!isLooping);
         assertInLoopThread();
 
@@ -78,7 +78,7 @@ namespace skylu{
         isLooping = false;
 
     }
-    void Eventloop::doPendingFunctors() {
+    void EventLoop::doPendingFunctors() {
         std::vector<Functor > functors;
         isCallingPendingFunctors = true;
         {
@@ -92,29 +92,29 @@ namespace skylu{
 
         isCallingPendingFunctors = false;
     }
-    void Eventloop::updateChannel(Channel *channel) {
+    void EventLoop::updateChannel(Channel *channel) {
         assert(channel->ownerLoop() == this);
         assertInLoopThread();
         m_poll->updateChannel(channel);
     }
 
 
-    Timerid Eventloop::runAt(const Timestamp &time, const Timer::TimerCallback &cb) {
+    Timerid EventLoop::runAt(const Timestamp &time, const Timer::TimerCallback &cb) {
 
         return m_timerqueue->addTimer(cb,time,0);
     }
 
-    Timerid Eventloop::runAfter(double delay, const Timer::TimerCallback &cb) {
+    Timerid EventLoop::runAfter(double delay, const Timer::TimerCallback &cb) {
         Timestamp time(addSecond(Timestamp::now(),delay));
         return runAt(time,cb);
     }
-    Timerid Eventloop::runEvery(double interval, const Timer::TimerCallback &cb) {
+    Timerid EventLoop::runEvery(double interval, const Timer::TimerCallback &cb) {
         Timestamp time(addSecond(Timestamp::now(),interval));
         return m_timerqueue->addTimer(cb,time,interval);
     }
 
 
-    void Eventloop::runInLoop(const Functor &cb) {
+    void EventLoop::runInLoop(const Functor &cb) {
         if(isInLoopThread()){
             cb();
 
@@ -124,7 +124,7 @@ namespace skylu{
 
     }
 
-    void Eventloop::queueInLoop(const Functor &cb) {
+    void EventLoop::queueInLoop(const Functor &cb) {
         {
             Mutex::Lock lock(m_mutex);
             m_pendingFunctors.push_back(std::move(cb));
@@ -136,7 +136,7 @@ namespace skylu{
 
     }
 
-    void Eventloop::wakeup() {
+    void EventLoop::wakeup() {
         uint64_t  one = 1;
         ssize_t ret = ::write(m_wakeupfd,&one,sizeof(one));
         if(ret != sizeof(one)){
@@ -144,7 +144,7 @@ namespace skylu{
         }
     }
 
-    void Eventloop::handleRead() {
+    void EventLoop::handleRead() {
         uint64_t  one = 1;
         ssize_t ret = ::read(m_wakeupfd,&one,sizeof(one));
         if(ret != sizeof(one)){
@@ -153,14 +153,14 @@ namespace skylu{
         }
     }
 
-    void Eventloop::quit() {
+    void EventLoop::quit() {
         isQuit = true;
         if(!isInLoopThread()){
             wakeup();
         }
     }
 
-    void Eventloop::removeChannel(Channel * channel) {
+    void EventLoop::removeChannel(Channel * channel) {
         assert(channel->ownerLoop() == this);
         assert(isInLoopThread());
         m_poll->removeChannel(channel);

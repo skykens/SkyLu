@@ -9,7 +9,7 @@
 #include <map>
 #include <sys/poll.h>
 #include "eventloop.h"
-#include "Timestamp.h"
+#include "timestamp.h"
 #include "nocopyable.h"
 #include "log.h"
 #include "poll.h"
@@ -20,7 +20,7 @@ namespace skylu{
     class Poller :public Poll{
     public:
 
-        Poller(Eventloop * loop);
+        Poller(EventLoop * loop);
         ~Poller() = default;
        virtual Timestamp poll(int timeoutMS,ChannelList& activeChannels);
 

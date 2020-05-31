@@ -41,7 +41,7 @@ void readTimerfd(int timerfd, Timestamp now)
 {
     uint64_t howmany;
     ssize_t n = ::read(timerfd, &howmany, sizeof howmany);
-    SKYLU_LOG_DEBUG(G_LOGGER) << "TimerQueue::handleRead() " << howmany << " at " << now.toString();
+ //   SKYLU_LOG_DEBUG(G_LOGGER) << "TimerQueue::handleRead() " << howmany << " at " << now.toString();
     if (n != sizeof howmany)
     {
         SKYLU_LOG_ERROR(G_LOGGER) << "TimerQueue::handleRead() reads " << n << " bytes instead of 8";
@@ -62,7 +62,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
         SKYLU_LOG_ERROR(G_LOGGER)<< "timerfd_settime()";
     }
 }
-    TimerQueue::TimerQueue(Eventloop *loop)
+    TimerQueue::TimerQueue(EventLoop *loop)
             :m_loop(loop)
             ,m_timerfd(createTimerfd())
             ,m_timerfdChannel(loop,m_timerfd)

@@ -6,7 +6,7 @@
 
 #include <assert.h>
 namespace skylu{
-    EventLoopThreadPool::EventLoopThreadPool(Eventloop *base, const std::string &name)
+    EventLoopThreadPool::EventLoopThreadPool(EventLoop *base, const std::string &name)
             :m_baseLoop(base)
             ,m_isStart(false)
             ,m_name(name)
@@ -33,10 +33,10 @@ namespace skylu{
         }
     }
 
-    Eventloop * EventLoopThreadPool::getNextLoop() {
+    EventLoop * EventLoopThreadPool::getNextLoop() {
         assert(m_baseLoop->isInLoopThread());
         assert(m_isStart);
-        Eventloop *loop = m_baseLoop;
+        EventLoop *loop = m_baseLoop;
         if(!m_loops.empty()){
             loop = m_loops[m_next];
             ++m_next;

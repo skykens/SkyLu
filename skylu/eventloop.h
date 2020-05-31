@@ -2,31 +2,32 @@
 // Created by jimlu on 2020/5/19.
 //
 
-#ifndef HASHTEST_EVENTLOOP_H
-#define HASHTEST_EVENTLOOP_H
+#ifndef HASHTEST_EventLoop_H
+#define HASHTEST_EventLoop_H
 
 
 #include "nocopyable.h"
 #include "util.h"
 #include "channel.h"
 #include "timerid.h"
-#include "Timestamp.h"
+#include "timestamp.h"
 #include "mutex.h"
 #include <sys/types.h>
 #include <memory>
+
 namespace skylu{
 
     class TimerQueue;
     class Poll;
-    class Eventloop :Nocopyable{
+    class EventLoop :Nocopyable{
         typedef std::function<void()> Functor;
     public:
-        Eventloop();
-        ~Eventloop();
+        EventLoop();
+        ~EventLoop();
         void loop();
         void assertInLoopThread();
         void updateChannel(Channel * channel);
-        static Eventloop* getEventLoopOfCurrentThread();
+        static EventLoop* getEventLoopOfCurrentThread();
         bool isInLoopThread()const{return m_threadid == getThreadId();}
         void removeChannel(Channel *channel);
         void quit();
@@ -68,4 +69,4 @@ namespace skylu{
 }
 
 
-#endif //HASHTEST_EVENTLOOP_H
+#endif //HASHTEST_EventLoop_H

@@ -10,7 +10,7 @@
 
 namespace skylu{
 
-    Poller::Poller(Eventloop *loop)
+    Poller::Poller(EventLoop *loop)
             :Poll(loop){
 
     }

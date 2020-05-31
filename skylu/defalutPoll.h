@@ -12,7 +12,7 @@
 
 
 namespace skylu {
-    Poll *defaultNewPoll(Eventloop *loop) {
+    Poll *defaultNewPoll(EventLoop *loop) {
         SKYLU_LOG_INFO(G_LOGGER) << "Default create epoller.";
       //  Poll *ret = new Poller(loop);
         Poll *ret = new Epoller(loop);
