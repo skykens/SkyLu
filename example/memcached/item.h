@@ -6,9 +6,9 @@
 #define HASHTEST_ITEM_H
 
 #include <memory>
-#include "skylu/nocopyable.h"
-#include "skylu/hash.hpp"
-#include "skylu/bytestring.h"
+#include "skylu/base/nocopyable.h"
+#include "skylu/base/hash.hpp"
+#include "skylu/base/bytestring.h"
 namespace skylu{
 
 class Item : Nocopyable{

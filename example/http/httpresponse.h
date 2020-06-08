@@ -5,7 +5,7 @@
 #ifndef HASHTEST_HTTPRESPONSE_H
 #define HASHTEST_HTTPRESPONSE_H
 
-#include "buffer.h"
+#include "skylu/net/buffer.h"
 #include <unordered_map>
 
 #define HTTP_TIMEOUT 500

@@ -8,9 +8,11 @@
             <mapping deploy="/tmp/tmp.fA1vBbPGiR" local="$PROJECT_DIR$" />
           </mappings>
           <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/example/http/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/example/memcached/cmake-build-debug" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
             <excludedPath local="true" path="$PROJECT_DIR$/example/memcached/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/skylu/cmake-build-debug" />
           </excludedPaths>
         </serverdata>
       </paths>

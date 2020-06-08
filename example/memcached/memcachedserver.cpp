@@ -3,8 +3,8 @@
 //
 
 #include "memcachedserver.h"
-#include "skylu/log.h"
-#include "skylu/daemon.h"
+#include "skylu/base/log.h"
+#include "skylu/base/daemon.h"
 #include <sys/mman.h>
 namespace skylu{
     const char * MemcachedServer::aof_file_name = "memcached_aof_";

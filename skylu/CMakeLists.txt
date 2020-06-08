@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 2.8.12.2)
-set(CMAKE_CXX_STANDARD 11)
-aux_source_directory(. DIR_LIB_SRCS)
+cmake_minimum_required(VERSION 3.10)
 
-add_library(skylu ${DIR_LIB_SRCS})
+aux_source_directory(base SRC_BASE)
+aux_source_directory(net SRC_NET)
+
+add_library(skylu ${SRC_BASE} ${SRC_NET})

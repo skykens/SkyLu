@@ -7,18 +7,18 @@
 
 #include <string>
 #include <unordered_map>
-#include "skylu/tcpserver.h"
-#include "skylu/nocopyable.h"
-#include "skylu/eventloop.h"
-#include "skylu/buffer.h"
-#include "skylu/timestamp.h"
-#include "skylu/tcpconnection.h"
-#include "skylu/address.h"
+#include "skylu/net/tcpserver.h"
+#include "skylu/base/nocopyable.h"
+#include "skylu/net/eventloop.h"
+#include "skylu/net/buffer.h"
+#include "skylu/net/timestamp.h"
+#include "skylu/net/tcpconnection.h"
+#include "skylu/net/address.h"
 #include <memory>
 #include <set>
 #include <malloc.h>
 #include <unordered_set>
-#include "skylu/bytestring.h"
+#include "skylu/base/bytestring.h"
 #include "item.h"
 #include "session.h"
 

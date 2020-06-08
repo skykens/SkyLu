@@ -7,10 +7,10 @@
 
 #include "httpresponse.h"
 #include "httprequest.h"
-#include "tcpserver.h"
-#include "eventloop.h"
+#include "skylu/net/tcpserver.h"
+#include "skylu/net/eventloop.h"
 #include <unordered_map>
-#include "timerid.h"
+#include "skylu/net/timerid.h"
 namespace skylu{
 class HttpServer {
 public:

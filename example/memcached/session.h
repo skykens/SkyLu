@@ -4,13 +4,12 @@
 
 #ifndef HASHTEST_SESSION_H
 #define HASHTEST_SESSION_H
-#include "skylu/nocopyable.h"
-#include <memory>
-#include "skylu/bytestring.h"
 #include <iostream>
-#include "skylu/bytestring.h"
-#include "skylu/buffer.h"
-#include "skylu/tcpconnection.h"
+#include <memory>
+#include "skylu/base/nocopyable.h"
+#include "skylu/base/bytestring.h"
+#include "skylu/net/buffer.h"
+#include "skylu/net/tcpconnection.h"
 #include <string>
 
 #define CLIENT_ERROR(message) "CLIENT_ERROR "#message"\r\n"
