@@ -65,6 +65,7 @@ namespace skylu{
 
     void HttpServer::doNewConnection(const TcpConnection::ptr &conne) {
 
+      SKYLU_LOG_INFO(G_LOGGER)<<"hello";
      //   EventLoop * loop = conne->getLoop();
      //   loop->runAfter(5,std::bind(&HttpServer::closeConnection,this,conne));
  //       assert(m_count_timers.find(conne.get()) == m_count_timers.end());
