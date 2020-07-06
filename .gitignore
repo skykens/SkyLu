@@ -1,3 +1,4 @@
-*/build/
 .idea/
-*/cmake-build-debug/
+example/http/cmake-build-debug/
+example/memcached/cmake-build-debug/
+example/raft_server/cmake-build-debug/
