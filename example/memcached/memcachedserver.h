@@ -23,9 +23,9 @@
 #include "session.h"
 
 
-#define SHARED_NUM 4096
 namespace skylu {
     class MemcachedServer : Nocopyable {
+    static const int kSharedNum = 4096;
     public:
         enum aofState{
             Init,
@@ -82,7 +82,7 @@ namespace skylu {
 
         typedef std::unordered_set<Item::ptr,Hash,Equal> MemcachedMap;
         typedef std::unordered_map<TcpConnection::ptr,Session *> SessionSet;
-        typedef std::array<MemcachedMap,SHARED_NUM> SharedMap;
+        typedef std::array<MemcachedMap,kSharedNum> SharedMap;
         TcpServer server;
         std::string m_name;
         EventLoop * m_loop;

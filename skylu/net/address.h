@@ -64,7 +64,9 @@ public:
     static IPv4Address::ptr Create(const char * address,uint32_t port = 0){
       IPv4Address::ptr tmp(new IPv4Address());
       tmp->m_addr.sin_port = htons(port);
-      tmp->m_addr.sin_addr.s_addr = inet_addr(address);
+      if(address != nullptr){
+        tmp->m_addr.sin_addr.s_addr = inet_addr(address);
+      }
       tmp->m_addr.sin_family = AF_INET;
       return tmp;
     }

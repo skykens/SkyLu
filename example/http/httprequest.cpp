@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <functional>
 namespace skylu{
-    HttpRequest::HttpRequest(Buffer * input)
+const char * HttpRequest::kWWW_ROOT = "../www";
+HttpRequest::HttpRequest(Buffer * input)
         :m_input_buffer(input)
         ,m_version(UNKNOW)
         ,m_method(INVALID)
@@ -34,13 +35,15 @@ namespace skylu{
             }else if(m_state == Headers){
                 const char *crlf = m_input_buffer->findCRLF();
                 if(crlf){
-                    const char * fildname = std::find(m_input_buffer->curRead(),crlf,':');
+                    const char * fieldname = std::find(m_input_buffer->curRead(),crlf,':');
                     //找到字段名
-                    if(fildname != crlf){
-                        addHeader(m_input_buffer->curRead(),fildname,crlf);
+                    if(fieldname != crlf){
+                        addHeader(m_input_buffer->curRead(),fieldname,crlf);
                     }else{
-                        m_state = Finish;
-                        more = false;
+                      //FIXME  可能会有问题 需要再测试测试
+                      m_state = Body;
+                      //m_state = Finish;
+                      //  more = false;
                     }
                     m_input_buffer->updatePosUntil(crlf+2);
                 }else{
@@ -48,9 +51,14 @@ namespace skylu{
                 }
             }else if(m_state == Body){
 
-                // TODO 处理报文体
+              int bodyLength = 0;
+              if(m_header.find("Content-Length") == m_header.end()
+                    || ( bodyLength = atoi(m_header["Content-Length"].c_str())) <= 0){
+                more = false; //不存在报文体
 
-
+              }
+              m_body.append(m_input_buffer->curRead(),bodyLength);
+              more = false; //结束全部读取
             }
         }
         return ret;
@@ -60,7 +68,7 @@ namespace skylu{
         bool ret = false;
         const char *start = begin;
         const char *space = std::find(start,end,' ');
-        if(space != end && setMethod(start,space)){
+        if(space != end && setMethod(start,space)){  // 直到crlf结束或者是遇到未知方法结束
             start = space + 1;
             space = std::find(start,end,' ');
             if(space != end){
@@ -71,7 +79,6 @@ namespace skylu{
                 }else{
                     setPath(start,space);
                 }
-
                 start = space + 1;
                 ret = end - start == 8 && std::equal(start,end - 1,"HTTP/1.");
                 if(ret){
@@ -89,7 +96,8 @@ namespace skylu{
     }
 
     void HttpRequest::addHeader(const char *start, const char *namelast, const char *end) {
-        std::string fild(start,namelast);
+
+        std::string field(start,namelast);
         ++namelast;  //跳过冒号
         while(namelast < end && *namelast ==' ') {
             namelast++;  //去掉前面的空格
@@ -98,7 +106,7 @@ namespace skylu{
         while(value.size()&& value[value.size()-1] == ' '){
             value.pop_back(); //去除后面的空格
         }
-        m_header[fild] = value; //可优化为move
+        m_header[field] = std::move(value);
 
     }
 
@@ -185,7 +193,7 @@ namespace skylu{
         if(subpath == "/"){
             subpath = "/index.html";
         }
-        m_path = WWW_ROOR + subpath;
+        m_path = kWWW_ROOT + subpath;
     }
 
     bool HttpRequest::setMethod(const char *begin, const char *end) {
@@ -206,5 +214,8 @@ namespace skylu{
 
 
     }
-}
+    bool HttpRequest::isCGI() const {
+      return m_method==POST || (m_method == GET && m_arg.size());
+    }
+    }
 

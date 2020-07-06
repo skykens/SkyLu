@@ -12,6 +12,7 @@
 #include <atomic>
 #include <functional>
 #include <list>
+#include <assert.h>
 
 #include "nocopyable.h"
 namespace skylu {
@@ -25,35 +26,45 @@ namespace skylu {
          * @param[in] capacity 0:无限制大小
          */
         SafeQueue(size_t capacity = 0)
-                : m_capacity(capacity) {
+                : m_capacity(capacity)
+                  ,m_cond(m_mutex){
         }
 
         /*
          * @brief 返回队列大小
          */
         size_t size() {
-            RWMutex::ReadLock lock(m_mutex);
+            Mutex::Lock lock(m_mutex);
             return m_que.size();
         }
         /*
          * @brief 返回队列是否为空
          */
         bool empty() {
-            RWMutex::ReadLock lock(m_mutex);
+            Mutex::Lock lock(m_mutex);
             return m_que.empty();
         }
 
-        /*
-         * @brief 添加队列成员
-         * @param[in] v 右值引用
-         * @ret 队列为满时false
-         */
+        bool push(T v){
+          Mutex::Lock lock(m_mutex);
+          if (m_capacity && m_que.size() == m_capacity)
+            return false;
+          m_que.push_back(v);
+          m_cond.notify();
+          return true;
+        }
+
+      /*
+       * @brief 添加队列成员
+       * @param[in] v 右值引用
+       * @ret 队列为满时false
+       */
         bool push(T &&v) {
-            if (m_capacity && size() == m_capacity)
+          Mutex::Lock lock(m_mutex);
+          if (m_capacity && m_que.size() == m_capacity)
                 return false;
-            RWMutex::WriteLock lock(m_mutex);
             m_que.push_back(std::move(v));
-            m_semaphore.notify();
+            m_cond.notify();
             return true;
         }
         /*
@@ -63,9 +74,9 @@ namespace skylu {
          * @descri 非阻塞
          */
         bool pop(T *v) {
-            if (empty())
+          Mutex::Lock lock(m_mutex);
+          if (m_que.empty())
                 return false;
-            RWMutex::WriteLock lock(m_mutex);
             *v = std::move(m_que.front());
             m_que.pop_front();
             return true;
@@ -79,9 +90,10 @@ namespace skylu {
          */
 
         T pop_wait() {
-            while (empty())
-                m_semaphore.wait();
-            RWMutex::WriteLock lock(m_mutex);
+          Mutex::Lock lock(m_mutex);
+          while (m_que.empty())
+                m_cond.wait();
+            assert(!m_que.empty());
             T v = std::move(m_que.front());
             m_que.pop_front();
             return v;
@@ -92,8 +104,8 @@ namespace skylu {
     private:
         size_t m_capacity;
         std::list<T> m_que;
-        RWMutex m_mutex;
-        Semaphore m_semaphore;
+        Mutex m_mutex;
+        Condition m_cond;
 
     };
 

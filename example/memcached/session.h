@@ -12,17 +12,18 @@
 #include "skylu/net/tcpconnection.h"
 #include <string>
 
-#define CLIENT_ERROR(message) "CLIENT_ERROR "#message"\r\n"
-#define SERVER_ERROR(message) "SERVER_ERROR "#message"\r\n"
-#define NOT_FOUND "NOT_FOUND\r\n"
-#define STORED "STORED\r\n"
-#define NOT_STORED "NOT_STORED\r\n"
-#define EXISTS "EXISTS\r\n"
-#define DELETED "DELETED\r\n"
-#define END "END\r\n"
 namespace skylu{
     class MemcachedServer;
 class Session :Nocopyable{
+  inline const std::string serverError(const std::string & message){return "SERVER_ERROR"+message+"\r\n";}
+  inline const std::string  clientError(const std::string & message){return "CLIENT_ERROR"+message+"\r\n";}
+  static const char * kNOT_FOUND ;
+  static  const char * kSTORED ;
+  static const char * kNOT_STORED;
+  static const char * kEXISTS;
+  static const char * kDELETED;
+
+  const char * kEND = "END\r\n";
     enum parseState{
         init,
         recvKey,
@@ -51,7 +52,7 @@ public:
     ~Session();
 
 private:
-    std::unique_ptr<MemcachedServer> m_owner;
+    MemcachedServer* m_owner;
     TcpConnection::ptr m_conne;
     parseState m_state;
     ByteString cmd;

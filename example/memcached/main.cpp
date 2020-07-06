@@ -10,23 +10,18 @@
 #include "skylu/base/tree.h"
 
 #include "skylu/base/btree.h"
+
+#include "skylu/base/threadpool.h"
 using namespace  skylu;
 EventLoop * g_loop = new EventLoop();
 int main(){
-    Address::ptr addr = IPv4Address::Create("127.0.0.1",3015);
+    Address::ptr addr = IPv4Address::Create(nullptr,3015);
     Signal::hook(SIGPIPE,[](){});
-    //HttpServer server(g_loop,addr,"http server");
-    //server.setThreadNum(5);
-    //server.run();
-    BTree tree;
 
     MemcachedServer server(g_loop,addr,"memcached server");
 
     server.setThreadNums(0);
     server.run();
-
-
-
 
     return 0;
 

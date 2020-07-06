@@ -7,7 +7,7 @@ using namespace skylu;
 int main(int agrc,char ** argv)
 {
   EventLoop g_loop;
-  Address::ptr addr = IPv4Address::Create("127.0.0.1",80);
+  Address::ptr addr = IPv4Address::Create(nullptr,80);
   HttpServer server(&g_loop,addr,"http server");
   server.setThreadNum(5);
   server.run();

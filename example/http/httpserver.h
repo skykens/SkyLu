@@ -9,6 +9,7 @@
 #include "httprequest.h"
 #include "skylu/net/tcpserver.h"
 #include "skylu/net/eventloop.h"
+#include <stdlib.h>
 #include <unordered_map>
 #include "skylu/net/timerid.h"
 namespace skylu{
@@ -22,7 +23,7 @@ public:
 
 private:
     void doRequest(const TcpConnection::ptr& conne,Buffer * buf);
-    void doNewConnection(const TcpConnection::ptr &conne);
+  void doNewConnection(const TcpConnection::ptr &conne);
     void closeConnection(const TcpConnection::ptr &conne);
 
 private:
@@ -30,7 +31,7 @@ private:
     TcpServer m_server;
     std::string m_name;
     bool isStart;
-    std::unordered_map<TcpConnection *,int64_t> m_count_timers;
+    std::unordered_map<TcpConnection *,int64_t> m_count_timers;  // TODO 处理心跳，需要加锁 在多线程。
 
 
 

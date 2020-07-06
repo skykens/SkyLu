@@ -44,8 +44,7 @@ public:
     /*
      * @brief 添加任务
      */
-    bool addTask(Task &&task);
-    bool addTask(Task &task){return addTask(Task(task));}
+    bool addTask(const Task &task){return m_tasks.push(task);}
     /*
      * @brief 返回就绪任务数
      */

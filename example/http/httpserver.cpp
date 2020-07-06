@@ -34,7 +34,7 @@ namespace skylu{
         if(request.parseRequest()){
 
            // ++m_count_timers[conne.get()];
-            HttpResponse response(request.getVersion(),200,request.getPath(),request.isKeepAlive());
+            HttpResponse response(request.getVersion(),200,request.isKeepAlive(),request.getMethod(),request.getPath(),request.getArg(),request.getBody());
 
             Buffer tmpbuf = std::move(response.initResponse());
             conne->send(&tmpbuf);
@@ -47,7 +47,7 @@ namespace skylu{
 
 
         }else{
-            HttpResponse response(request.getVersion(),400,"",request.isKeepAlive());
+            HttpResponse response(request.getVersion(),400,request.isKeepAlive());
 
             Buffer tmpbuf = std::move(response.initResponse());
             conne->send(&tmpbuf);
@@ -65,7 +65,6 @@ namespace skylu{
 
     void HttpServer::doNewConnection(const TcpConnection::ptr &conne) {
 
-      SKYLU_LOG_INFO(G_LOGGER)<<"hello";
      //   EventLoop * loop = conne->getLoop();
      //   loop->runAfter(5,std::bind(&HttpServer::closeConnection,this,conne));
  //       assert(m_count_timers.find(conne.get()) == m_count_timers.end());
@@ -80,4 +79,7 @@ namespace skylu{
 
 
 
-}
+
+
+
+    }

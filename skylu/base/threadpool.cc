@@ -30,10 +30,5 @@ void ThreadPool::join(){
         it->join();
 }
 
-bool ThreadPool::addTask(Task &&task)
-{
-   return m_tasks.push(move(task));
-    
-    
-}
+
 }

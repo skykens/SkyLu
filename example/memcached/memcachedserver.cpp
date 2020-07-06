@@ -29,8 +29,6 @@ namespace skylu{
             SKYLU_LOG_INFO(G_LOGGER)<<"close conne :"<<conne->getName();
         });
 
-        loop->runEvery(1,std::bind(&MemcachedServer::AofSync,this));
-        Signal::hook(SIGCHLD,std::bind(&MemcachedServer::setReWrittened,this));
 
     }
     void MemcachedServer::setReWrittened(){
@@ -47,7 +45,9 @@ namespace skylu{
 
 
     void MemcachedServer::run() {
-        init();
+      m_loop->runEvery(1,std::bind(&MemcachedServer::AofSync,this));
+      Signal::hook(SIGCHLD,std::bind(&MemcachedServer::setReWrittened,this));
+      init();
         Timestamp when = Timestamp::now();
         LoadAof(when);
         m_aof_state = Append;
@@ -104,14 +104,14 @@ namespace skylu{
 
     bool MemcachedServer::del(const ByteString &key) {
             Item::ptr tmp(new Item(key));
-            size_t n = m_maps[tmp->hash() % SHARED_NUM].erase(tmp);
+            size_t n = m_maps[tmp->hash() % kSharedNum].erase(tmp);
             return n==1;
     }
 
     bool MemcachedServer::set(const ByteString &key, const ByteString &value, int flag) {
 
         size_t hashcode = Item::hash(key);
-        auto it = m_maps[hashcode%SHARED_NUM].insert(Item::makeItem(key,value,flag,hashcode));
+        auto it = m_maps[hashcode%kSharedNum].insert(Item::makeItem(key,value,flag,hashcode));
         if(!it.second){
             it.first->get()->setValue(value);
         }
@@ -122,8 +122,8 @@ namespace skylu{
     Item* MemcachedServer::get(const ByteString &key) {
 
         Item::ptr tmp(new Item(key));
-        auto it = m_maps[tmp->hash()%SHARED_NUM].find(tmp);
-        if(it != m_maps[tmp->hash()%SHARED_NUM].end()){
+        auto it = m_maps[tmp->hash()%kSharedNum].find(tmp);
+        if(it != m_maps[tmp->hash()%kSharedNum].end()){
             return it->get();
         }else{
             return nullptr;

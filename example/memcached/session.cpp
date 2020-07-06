@@ -6,7 +6,14 @@
 #include "memcachedserver.h"
 #include <sstream>
 namespace skylu{
-    Session::Session(MemcachedServer *owner, const TcpConnection::ptr & conne)
+
+const char * Session::kNOT_FOUND = "NOT_FOUND\r\n";
+const char * Session::kSTORED = "STORED\r\n";
+const char * Session::kNOT_STORED = "NOT_STORED\r\n";
+const char * Session::kEXISTS = "EXISTS\r\n";
+const char * Session::kDELETED = "DELETED\r\n";
+
+Session::Session(MemcachedServer *owner, const TcpConnection::ptr & conne)
             :m_owner(owner)
             ,m_conne(conne)
             ,m_state(init)
@@ -31,7 +38,7 @@ namespace skylu{
         if(crlf){
             const char * space = std::find(buf->curRead(),crlf,' ');
             if(space == crlf){
-                reply(CLIENT_ERROR("can't found space"));
+                reply(clientError("can't found space"));
                 return ;
             }
             cmd = ByteString(buf->curRead(),space);
@@ -46,7 +53,7 @@ namespace skylu{
                     }
                 }
                 if(m_state != recvKey){
-                    reply(CLIENT_ERROR("can't found key"));
+                    reply(clientError("can't found key"));
                     closeSession();
                     return ;
                 }
@@ -89,7 +96,7 @@ namespace skylu{
                     }
                 }
                 if(m_state != recvBytes){
-                    reply(CLIENT_ERROR("flag 、exptime 、bytes is must."));
+                    reply(clientError("flag 、exptime 、bytes is must."));
                     closeSession();
                     return ;
                 }
@@ -99,11 +106,11 @@ namespace skylu{
                 doUpdate(buf);
 
             }else{
-                reply(NOT_FOUND);
+                reply(kNOT_FOUND);
                 closeSession();
             }
         }else{
-            reply(CLIENT_ERROR("can't found "));
+            reply(clientError("can't found "));
             closeSession();
         }
 
@@ -114,10 +121,10 @@ namespace skylu{
 
     void Session::doDelete() {
         if(m_owner->del(keys[0])){
-            reply(DELETED);
+            reply(kDELETED);
             m_owner->appendAof(ByteString(recvBegin,recvEnd));
         }else{
-            reply(NOT_FOUND);
+            reply(kNOT_FOUND);
         }
     }
 
@@ -135,10 +142,10 @@ namespace skylu{
                     m_output.append(item->getValue(), item->getValueLen());
                     reply();
             }else{
-                reply(NOT_FOUND);
+                reply(kNOT_FOUND);
             }
         }
-        reply(END);
+        reply(kEND);
 
     }
     void Session::reply() {
@@ -172,9 +179,9 @@ namespace skylu{
         recvEnd = const_cast<char*>(buf->curRead()+m_bytes+2);
         buf->updatePos(m_bytes+2); //会重置
             if(!m_owner->set(key,value,m_flag)){
-                reply(SERVER_ERROR("too larget"));
+                reply(serverError("too largest"));
             }else{
-                reply(STORED);
+                reply(kSTORED);
                 m_owner->appendAof(ByteString(recvBegin,recvEnd));
 
             }
