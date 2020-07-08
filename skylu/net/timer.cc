@@ -3,11 +3,13 @@
 //
 
 #include "timer.h"
+
+#include <utility>
 namespace skylu{
 
     std::atomic_long Timer::g_AutocreatemSequence;
     Timer::Timer(TimerCallback cb,Timestamp when, double interval)
-        :m_callback(cb)
+        :m_callback(std::move(cb))
         ,m_expiration(when)
         ,m_interval(interval)
         ,isRepeat(interval > 0)

@@ -29,7 +29,7 @@ struct timespec howMuchTimeFromNow(Timestamp when)
     {
         microseconds = 100;
     }
-    struct timespec ts;
+    struct timespec ts{};
     ts.tv_sec = static_cast<time_t>(
             microseconds / Timestamp::kMicroSecondsPerSecond);
     ts.tv_nsec = static_cast<long>(
@@ -41,7 +41,6 @@ void readTimerfd(int timerfd, Timestamp now)
 {
     uint64_t howmany;
     ssize_t n = ::read(timerfd, &howmany, sizeof howmany);
- //   SKYLU_LOG_DEBUG(G_LOGGER) << "TimerQueue::handleRead() " << howmany << " at " << now.toString();
     if (n != sizeof howmany)
     {
         SKYLU_LOG_ERROR(G_LOGGER) << "TimerQueue::handleRead() reads " << n << " bytes instead of 8";
@@ -51,8 +50,8 @@ void readTimerfd(int timerfd, Timestamp now)
 void resetTimerfd(int timerfd, Timestamp expiration)
 {
     // wake up loop by timerfd_settime()
-    struct itimerspec newValue;
-    struct itimerspec oldValue;
+    struct itimerspec newValue{};
+    struct itimerspec oldValue{};
     bzero(&newValue, sizeof newValue);
     bzero(&oldValue, sizeof oldValue);
     newValue.it_value = howMuchTimeFromNow(expiration);
@@ -149,7 +148,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
         assert(m_timers.size() == m_activerTimers.size());
         std::vector<Entry > expired;
         Entry sentry = std::make_pair(now, reinterpret_cast<Timer *>(UINTPTR_MAX));
-        TimerSet::iterator  it = m_timers.lower_bound(sentry);
+        auto  it = m_timers.lower_bound(sentry);
         assert(it == m_timers.end() || now < it->first);
 
         std::copy(m_timers.begin(),it,std::back_inserter(expired));
@@ -167,9 +166,9 @@ void resetTimerfd(int timerfd, Timestamp expiration)
 
     }
     Timerid TimerQueue::addTimer(const Timer::TimerCallback &cb,Timestamp when, double interval) {
-        Timer * timer = new Timer(std::move(cb),when,interval);
+        auto * timer = new Timer(cb,when,interval);
         m_loop->runInLoop(std::bind(&TimerQueue::addTimerInLoop,this,timer));
-        return Timerid(timer,timer->getSequence());
+        return {timer,static_cast<uint64_t>(timer->getSequence())};
     }
 
     void TimerQueue::cancelTimer(Timerid timer) {

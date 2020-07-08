@@ -373,6 +373,11 @@ void Raft::resetSilentTime(int id) {
   }
 }
 
+/**
+ * 增加peer等待时间
+ * @param ms
+ * @return 尚未超时的peer数量
+ */
 int Raft::increaseSilentTime(int ms) {
   int recent_peers = 1;
   for(int i=0;i<m_config.peernum_max;i++){
@@ -508,6 +513,7 @@ void Raft::tick(int msec) {
   }
   refreshAcked();
 
+  // 通过计算每个peer的选举心跳时间来判断自己现在是不是leader
   int recent_peers = increaseSilentTime( msec);
   if ((m_role == Leader) && (recent_peers * 2 <= m_peerNum)) {
     SKYLU_LOG_INFO(G_LOGGER)<<"lost quorum, demoting";

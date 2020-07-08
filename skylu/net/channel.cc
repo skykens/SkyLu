@@ -10,6 +10,7 @@
 #include "../base/log.h"
 namespace skylu{
     const int Channel::kNoneEvent = 0;
+    // EPOLL 和 POLL 监听事件的值都是一样的
     const int Channel::kReadEvent = POLLIN | POLLPRI;
     const int Channel::kWriteEvent = POLLOUT;
 

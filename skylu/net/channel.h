@@ -12,6 +12,9 @@
 #include <memory>
 namespace skylu{
     class EventLoop;
+    /**
+     * 通道 存放监听事件 和 回调函数
+     */
     class Channel: Nocopyable {
     public:
         typedef std::shared_ptr<Channel> ptr;
@@ -20,10 +23,10 @@ namespace skylu{
         Channel(EventLoop * loop,int fd);
         ~Channel();
         void handleEvent(Timestamp & receiveTime);
-        void setReadCallback(ReadEventCallback cb){m_readCallback = std::move(cb);}
-        void setWriteCallback(EventCallback cb){m_writeCallback = std::move(cb);}
-        void setErrorCallback(EventCallback cb){m_errorCallback = std::move(cb);}
-        void setCloseCallback(EventCallback cb){m_closeCallback = std::move(cb);}
+        void setReadCallback(const ReadEventCallback &cb){m_readCallback = cb;}
+        void setWriteCallback(const EventCallback &cb){m_writeCallback = cb;}
+        void setErrorCallback(const EventCallback &cb){m_errorCallback = cb;}
+        void setCloseCallback(const EventCallback &cb){m_closeCallback = cb;}
 
         int getFd()const {return m_fd;}
         int getEvent()const {return m_events;}
@@ -35,6 +38,7 @@ namespace skylu{
         void enableWriting() {m_events |= kWriteEvent;update();}
         void disableWriting() {m_events &= ~kWriteEvent; update();}
         void disableAll(){m_events = kNoneEvent;update();}
+
         bool isWriting() const {return m_events & kWriteEvent;}
 
         void remove();
@@ -47,6 +51,9 @@ namespace skylu{
         EventLoop *ownerLoop(){return m_loop;}
 
     private:
+      /**
+       * 更新监听事件，实际上会调用m_loop->updateChannel
+       */
         void update();
     private:
         static const int kNoneEvent;

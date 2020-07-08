@@ -30,7 +30,9 @@ typedef struct mstimer_t {
 	struct timeval tv;
 } mstimer_t;
 
-// Restart the timer and return the accumulated milliseconds
+/*
+ * 重置定时器 并返回过去了多少ms
+ */
 int mstimer_reset(mstimer_t *t);
 struct timeval ms2tv(int ms);
 

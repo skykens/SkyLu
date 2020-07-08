@@ -101,7 +101,7 @@ struct Process{
 struct  Peer{
   bool up; ///是否使用
   int sequence;  ///rpc序号
-  Process acked;  /// 接收的数量 ： acked
+  Process acked;  /// 接收的序号 ： acked
   int applied;  /// 心跳包发出去的数量 ： leader时
   std::string host;
   int port;
@@ -279,7 +279,7 @@ private:
   int m_leaderId;
   int m_sockFd;
 
-  int m_timer;
+  int m_timer;  // 选举时间
   Config m_config;
 
   Log m_log;

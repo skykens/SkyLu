@@ -328,7 +328,7 @@ static bool accept_client(void) {
   }
   debug("a new connection fd=%d accepted\n", fd);
 
-  if (!raft_is_leader(raft)) {
+  if (!g_raft->isLeader()) {
     debug("not a leader, disconnecting the accepted connection fd=%d\n", fd);
     close(fd);
     return false;
@@ -405,12 +405,13 @@ static void attend(Client *c) {
   }
 }
 
-static void notify(void) {
+static void notify() {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     Client *c = server.clients + i;
     if (c->state != CLIENT_WAITING) continue;
     assert(c->expect >= 0);
-    if (!raft_applied(raft, server.id, c->expect)) continue;
+    if(g_raft->applied(server.id,c->expect))
+      continue;
 
     c->msg.meaning = MEAN_OK;
     c->cursor = 0;
@@ -639,13 +640,14 @@ int main(int argc, char **argv) {
 
 
   mstimer_t t;
-  mstimer_reset(&t);
+  mstimer_reset(&t);  //赋值 t 为当前时间
   while (!stop)
   {
     MsgData * m = NULL;
 
     int ms = mstimer_reset(&t);
     raft.tick(ms);
+
 
     if (tick(rc.heartbeat_ms))
     {

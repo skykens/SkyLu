@@ -7,7 +7,7 @@
 
 
 #include <sys/types.h>
-#include <time.h>
+#include <ctime>
 #include <functional>
 #include <atomic>
 #include "timestamp.h"
@@ -19,11 +19,11 @@ namespace skylu{
         typedef std::function<void()> TimerCallback;
         Timer(TimerCallback cb,Timestamp when,double interval);
         void run()const{m_callback();}
-        bool repeat(){return isRepeat;}
+        bool repeat() const{return isRepeat;}
 
         void restart(Timestamp now);
         Timestamp getExpiration() {return m_expiration;}
-        int64_t  getSequence(){return m_sequence;}
+        int64_t  getSequence() const{return m_sequence;}
 
 
 
