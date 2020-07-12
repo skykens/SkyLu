@@ -14,7 +14,7 @@
 
 #include <functional>
 #include <unordered_map>
-#include <signal.h>
+#include <csignal>
 namespace skylu{
 
 
@@ -53,7 +53,7 @@ private:
      * @brief 实际signal的函数
      */
     static void hanlder(int sig){
-        maps[sig]();
+      if(maps[sig]) { maps[sig](); }
     }
 private:
 

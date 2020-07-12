@@ -118,26 +118,27 @@ public:
     /**
      * @brief 发送
      */
-    virtual size_t send(const void * buff, size_t size);
+    virtual ssize_t send(const void * buff, size_t size);
 
     /**
      * @brief 发送到目的地址
      */
-    virtual size_t sendTo(const void *buff,size_t size,const Address::ptr target,int flags = 0);
+    virtual ssize_t sendTo(const void *buff,size_t size,const Address::ptr target,int flags = 0);
     /**
      * @brief 接收 
      */
-    virtual size_t recv(void *buff,size_t size);
+    virtual ssize_t recv(void *buff,size_t size);
 
     /**
      * @brief 接收某个地址的内容
      */
 
-    virtual size_t recvFrom(void* buff,size_t size,Address::ptr from,int flags = 0);
+    virtual ssize_t recvFrom(void* buff,size_t size,Address::ptr from,int flags = 0);
 
 
     /**
-     * @brief 返回成员变量address 如果没有初始化就初始化
+     * @brief 返回当前socket本端地址和对端地址. 无法使用于bind后的套接字
+     *
      */
     Address::ptr getLocalAddress();
     Address::ptr getRemoteAddress();
@@ -183,6 +184,8 @@ public:
      * @param on
      */
     void setTcpNoDelay(bool on);
+
+    bool isTcpSocket() const{return m_type == TCP;}
 
 private:
 

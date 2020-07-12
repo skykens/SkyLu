@@ -14,6 +14,7 @@
 #include <assert.h>
 #include "../base/nocopyable.h"
 #include "../base/log.h"
+#include "address.h"
 namespace skylu {
 
     static Logger::ptr cG_LOGGER = SKYLU_LOG_NAME("system");
@@ -30,7 +31,21 @@ namespace skylu {
             {
         }
         ~Buffer() = default;
-        size_t readFd(int fd,int *saveError);
+        /**
+         * 读取TCP 的套接字
+         * @param fd
+         * @param saveError
+         * @return
+         */
+        ssize_t readFd(int fd,int *saveError);
+        /**
+         * 读取UDP 的套接字
+         * @param fd
+         * @param saveError
+         * @param addr  对端地址
+         * @return
+         */
+        ssize_t readFd(int fd,int *saveError,const Address::ptr& addr);
 
         /**
          *可读字节数
@@ -78,9 +93,6 @@ namespace skylu {
 
         }
 
-     //   char *curRead(){
-       //     return reinterpret_cast<char *>(m_queue.data()) + m_rpos;
-        //}
 
         const char *curRead() const {
 

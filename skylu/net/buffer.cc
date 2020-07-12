@@ -9,7 +9,8 @@
 
 namespace skylu{
 
-    size_t Buffer::readFd(int fd, int *saveError) {
+
+    ssize_t Buffer::readFd(int fd, int *saveError) {
         char extrabuf[65536];  //64k 的空间，已经能够容纳千兆网在50微妙下的全速收到的数据了
         struct iovec vec[2];
 
@@ -38,7 +39,20 @@ namespace skylu{
 
 
     }
+    ssize_t Buffer::readFd(int fd, int *saveError, const Address::ptr& addr) {
+      // TODO 后续可以看看UDP下面有没有类似于TCP的readv这样多个缓冲区同时拷贝的
+      const size_t writeable = writeableBytes();
+      char extrabuf[65536 + writeable];  //64k 的空间，已经能够容纳千兆网在50微妙下的全速收到的数据了
 
+      socklen_t  len = addr->getAddrLen();
+      const ssize_t  n = ::recvfrom(fd,extrabuf,sizeof(extrabuf),0,addr->getAddr(),&len);
 
+      if(n<0){
+        *saveError = errno;
+      }else{
+        append(extrabuf,n);
+      }
+      return n;;
+    }
 
-}
+    }

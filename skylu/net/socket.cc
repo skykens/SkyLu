@@ -197,7 +197,7 @@ void Socket::setNonblock(){
 }
 
 
-size_t Socket::send(const void *buff,size_t size){
+ssize_t Socket::send(const void *buff,size_t size){
     if(m_isConnected && m_isVaild)
     {
         return ::send(m_fd,buff,size,0);
@@ -209,7 +209,7 @@ size_t Socket::send(const void *buff,size_t size){
 
 
 
-size_t Socket::sendTo(const void *buff,size_t size,const Address::ptr target,int flags){
+ssize_t Socket::sendTo(const void *buff,size_t size,const Address::ptr target,int flags){
 
     if(m_isConnected && m_isVaild){
         return ::sendto(m_fd,buff,size,flags,target->getAddr(),target->getAddrLen());
@@ -219,7 +219,7 @@ size_t Socket::sendTo(const void *buff,size_t size,const Address::ptr target,int
     return -1;
 }
 
-size_t Socket::recv(void *buff,size_t size) {
+ssize_t Socket::recv(void *buff,size_t size) {
     if (m_isConnected && m_isVaild) {
         return ::recv(m_fd, buff, size, 0);
     }
@@ -231,7 +231,7 @@ size_t Socket::recv(void *buff,size_t size) {
 
 }
 
-size_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
+ssize_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
 
     if(m_isConnected && m_isVaild){
         socklen_t  len = from->getAddrLen();

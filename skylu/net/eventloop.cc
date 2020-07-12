@@ -30,7 +30,8 @@ namespace skylu{
         ,m_poll(defaultNewPoll(this))
         ,m_timerqueue(new TimerQueue(this))
         ,m_wakeupfd(createEventfd())
-        ,m_wakeupChannel(new Channel(this,m_wakeupfd)){
+        ,m_wakeupChannel(new Channel(this,m_wakeupfd))
+        ,m_poll_timeoutMs(kPollTimeMS){
 
         SKYLU_LOG_DEBUG(G_LOGGER)<<"Event Loop create "<<this<<"in thread "<<m_threadid;
         if(t_loopInThread){
@@ -65,7 +66,7 @@ namespace skylu{
 
         while(!isQuit){
             m_activeChannels.clear();
-           Timestamp now =  m_poll->poll(kPollTimeMS,m_activeChannels);
+           Timestamp now =  m_poll->poll(m_poll_timeoutMs,m_activeChannels);
             for(auto it : m_activeChannels){
                 it->handleEvent(now);
             }
@@ -124,10 +125,14 @@ namespace skylu{
 
     }
 
+    void EventLoop::cancelTimer(Timerid timer) {
+      m_timerqueue->cancelTimer(timer);
+    }
+
     void EventLoop::queueInLoop(const Functor &cb) {
         {
             Mutex::Lock lock(m_mutex);
-            m_pendingFunctors.push_back(std::move(cb));
+            m_pendingFunctors.push_back(cb);
         }
 
         if(!isInLoopThread() || isCallingPendingFunctors){
@@ -136,7 +141,7 @@ namespace skylu{
 
     }
 
-    void EventLoop::wakeup() {
+    void EventLoop::wakeup() const {
         uint64_t  one = 1;
         ssize_t ret = ::write(m_wakeupfd,&one,sizeof(one));
         if(ret != sizeof(one)){
@@ -144,7 +149,7 @@ namespace skylu{
         }
     }
 
-    void EventLoop::handleRead() {
+    void EventLoop::handleRead() const {
         uint64_t  one = 1;
         ssize_t ret = ::read(m_wakeupfd,&one,sizeof(one));
         if(ret != sizeof(one)){

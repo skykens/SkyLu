@@ -78,6 +78,8 @@ namespace skylu{
          */
         Timerid runEvery(double interval,const Timer::TimerCallback& cb);
 
+        void cancelTimer(Timerid timer);
+
         /**
          * 将函数的调用移动到IO线程中
          * @param cb
@@ -86,17 +88,19 @@ namespace skylu{
 
         void queueInLoop(const Functor &cb);
 
+        void setPollTimeoutMS(int ms){m_poll_timeoutMs = ms;}
+
     private:
       /**
        * 处理的是eventfd的唤醒事件
        */
-        void handleRead();
+        void handleRead() const;
         void doPendingFunctors();
 
         /**
          * 唤醒eventfd
          */
-        void wakeup();
+        void wakeup() const;
 
 
 
@@ -105,20 +109,20 @@ namespace skylu{
         static const int kPollTimeMS;
 
         typedef std::vector<Channel *>ChannelList;
-        bool isQuit;
+        bool isQuit{};
         ChannelList m_activeChannels;
         bool isLooping;
         const pid_t m_threadid;
       // 使用unique可以避免头文件引用
         std::unique_ptr<Poll> m_poll;
         std::unique_ptr<TimerQueue> m_timerqueue;
-        bool isCallingPendingFunctors;
+        bool isCallingPendingFunctors{};
         const int m_wakeupfd;
         std::unique_ptr<Channel> m_wakeupChannel;
         Mutex m_mutex;
 
         std::vector<Functor> m_pendingFunctors;
-
+        int m_poll_timeoutMs;
 
     };
 }

@@ -7,14 +7,16 @@
 #include <assert.h>
 #include <functional>
 #include <algorithm>
+#include <utility>
 namespace skylu{
-    TcpConnection::TcpConnection(EventLoop *loop, Socket::ptr socket,const std::string & name)
+    TcpConnection::TcpConnection(EventLoop *loop, Socket::ptr socket,std::string  name)
             :m_state(kConnceting)
             ,m_loop(loop)
-            ,m_socket(socket)
+            ,m_socket(std::move(socket))
             ,m_channel(new Channel(m_loop,m_socket->getSocket()))
-            ,m_name(name),
+            ,m_name(std::move(name)),
             m_highMark(64*1024*1024){  //高水位的位置应该是64K
+        assert(socket->isTcpSocket());
         m_channel->setReadCallback(std::bind(&TcpConnection::handleRead,this));
         m_channel->setErrorCallback(std::bind(&TcpConnection::handleError,this));
         m_channel->setCloseCallback(std::bind(&TcpConnection::handleClose,this));

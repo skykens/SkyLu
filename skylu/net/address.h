@@ -47,6 +47,7 @@ public:
     virtual socklen_t getAddrLen()const =0;
     virtual socklen_t getAddrLen() = 0;
     virtual sockaddr * getAddr() = 0;
+    virtual std::string getAddrForString() = 0;
     virtual int getFamily()const = 0;
     virtual ~Address() = default;
 };
@@ -74,14 +75,14 @@ public:
     /*
      * @brief 通过sockaddr_in构造
      */
-    IPv4Address(const sockaddr_in &addr){
+    explicit IPv4Address(const sockaddr_in &addr){
         m_addr = addr;
     }
 
     /*
      * @brief 通过二进制地址构造
      */
-    IPv4Address(uint32_t address = INADDR_ANY , uint32_t port = 0);
+    explicit IPv4Address(uint32_t address = INADDR_ANY , uint32_t port = 0);
 
     /*
      * @brief 获取sockaddr_in
@@ -111,13 +112,15 @@ public:
     int getFamily()const override;
 
 
+    std::string getAddrForString(){return std::string(inet_ntoa(m_addr.sin_addr));}
+
 
 
 
 
 
 private:
-    sockaddr_in m_addr;
+    sockaddr_in m_addr{};
 
         
 };

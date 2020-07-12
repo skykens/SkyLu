@@ -4,6 +4,7 @@
 
 #include "raft.h"
 #include <arpa/inet.h>
+#include <skylu/net/udpconnection.h>
 namespace skylu{
 namespace raft{
 
@@ -24,10 +25,10 @@ bool Raft::ConfigIsOk(Config& config) {
     ok = false;
   }
 
-  if(sizeof(MsgUpdate)+config.chunk_len-1>UDP_SAFE_SIZE){
+  if(sizeof(MsgUpdate)+config.chunk_len-1>kUdpMaxSize){
     SKYLU_LOG_FMT_ERROR(G_LOGGER,
                         "please ensure chunk_len <= %lu, %d is too much for UDP\n",
-                        UDP_SAFE_SIZE - sizeof(MsgUpdate) + 1,
+                        kUdpMaxSize - sizeof(MsgUpdate) + 1,
                         config.chunk_len
                         );
     ok = false;
@@ -40,58 +41,38 @@ bool Raft::ConfigIsOk(Config& config) {
 
   return ok;
 }
-Raft::Raft(const skylu::raft::Config &config)
+Raft::Raft(const skylu::raft::Config &config,EventLoop * loop)
       :m_term(0)
       ,m_voteFor(NOBODY)
       ,m_role(Follower)
       ,m_me(NOBODY)
       ,m_votes(0)
       ,m_leaderId(NOBODY)
-      ,m_sockFd(-1)
-      ,m_timer(0)
+      ,m_loop(loop)
       ,m_config(config)
       ,m_log(config.log_len)
-      ,m_peerNum(0)
       ,m_peers(config.peernum_max){
-  assert(m_peers.size() == m_config.peernum_max);
-  for(int i = 0 ;i<m_peers.size();i++){
-    m_peers[i] = new Peer();
-
-
+  assert(static_cast<int>(m_peers.size()) == m_config.peernum_max);
+  for(auto & m_peer : m_peers){
+    m_peer.reset(new Peer);
   }
 
 }
-bool Raft::peerUp(int id, std::string host, int port, bool self) {
+Raft::Peer::ptr Raft::peerUp(int id, const std::string& host, int port, bool self) {
 
-  Peer  *p =  m_peers[id];
-  struct addrinfo hint;  //域名
-  struct addrinfo *a = nullptr;
+  auto p =  m_peers[id];
 
-  if(m_peerNum >= m_config.peernum_max){
+  if( static_cast<int>(m_peers.size()) >= m_config.peernum_max){
     SKYLU_LOG_ERROR(G_LOGGER)<<"too many peers";
-    return false;
+    return nullptr;
 
   }
-
   p->up = true;
-  p->host = host;
-  p->port = port;
-
-  bzero(&hint,sizeof(hint));
-  hint.ai_socktype = SOCK_DGRAM;
-  hint.ai_family = AF_INET;
-  hint.ai_protocol = getprotobyname("udp")->p_proto;
-
-  if(getaddrinfo(host.c_str(),std::to_string(port).c_str(),&hint,&a)){
-    SKYLU_LOG_ERROR(G_LOGGER)<<"cannot convert the host string "<<host
-                  <<"to a valid address: %s"<<gai_strerror(errno);
-    return false;
-  }
-
-  assert(a != NULL && a->ai_addrlen <= sizeof(p->addr));
-  memcpy(&p->addr,a->ai_addr,a->ai_addrlen);
+  Address::ptr addr = IPv4Address::Create(host.c_str(),port);
+  p->host = Socket::CreateUDP(addr);
 
   if(self){
+    m_socket = p->host;
     if(m_me != NOBODY){
       SKYLU_LOG_ERROR(G_LOGGER)<<"cannot set  'self ' peer multiple times ";
     }
@@ -100,43 +81,45 @@ bool Raft::peerUp(int id, std::string host, int port, bool self) {
     resetTimer();
   }
 
-  m_peerNum++;
-  return true;
+  return p;
 
 
 }
 
 
 void Raft::peerDown(int id) {
-  Peer * p  = m_peers[id];
+  auto p  = m_peers[id];
   p->up = false;
   if(m_me == id){
     m_me = NOBODY;
   }
-  --m_peerNum;
 }
 
 
 
 void Raft::resetTimer() {
+  // TODO 每次都这样重新移除再添加有点消耗性能
+  m_loop->cancelTimer(m_hartbeat_timer);
+  m_loop->cancelTimer(m_candidate_timer);
   if(m_role == Leader){
-    m_timer = m_config.heartbeat_ms;
+
+    m_hartbeat_timer = m_loop->runEvery(m_config.heartbeat_ms
+                                        ,std::bind(&Raft::tick,this,m_config.heartbeat_ms));
+
 
   }else{
-    /// 候选者
-
-    m_timer = randBetweenTime(m_config.election_ms_min,m_config.election_ms_max);
+    /// Candidate
+    int randMs = randBetweenTime(m_config.election_ms_min,m_config.election_ms_max);
+    m_candidate_timer = m_loop->runEvery(randMs
+                                         ,std::bind(&Raft::tick,this,randMs));
   }
 }
-int Raft::progress() {
-  return m_log.applied;
-}
-bool Raft::applied(int id, int index) {
+bool Raft::applied(int id, int index) const {
   if(m_me == id){
     return m_log.applied > index;
 
   }else{
-    Peer * p = m_peers[id];
+    auto p = m_peers[id];
     if(!p->up){
       return false;
     }
@@ -160,83 +143,12 @@ int Raft::apply() {
 }
 
 
-void Raft::setRecvTimeout(int ms) {
-
-  struct timeval tv;
-  tv.tv_sec = ms / 1000;
-  tv.tv_usec = ((ms % 1000) * 1000);
-  if (setsockopt(m_sockFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
-    SKYLU_LOG_FMT_ERROR(G_LOGGER,"failed to set socket recv timeout: %s\n", strerror(errno));
-  }
-}
-
-void Raft::setReuseaddr() {
-
-  int optval = 1;
-  if (setsockopt(
-      m_sockFd, SOL_SOCKET, SO_REUSEADDR,
-      (char const*)&optval, sizeof(optval)
-  ) == -1) {
-    SKYLU_LOG_FMT_ERROR(G_LOGGER,"failed to set socket to reuseaddr: %s\n", strerror(errno));
-  }
-}
-
-
-int Raft::createUdpSocket() {
-  assert(m_me != NOBODY);
-  Peer  *me = m_peers[m_me];
-  struct addrinfo hint;
-  struct addrinfo *addrs = NULL;
-  struct addrinfo *a;
-  char portstr[6];
-  int rc;
-  memset(&hint, 0, sizeof(hint));
-  hint.ai_socktype = SOCK_DGRAM;
-  hint.ai_family = AF_INET;
-  hint.ai_protocol = getprotobyname("udp")->p_proto;
-
-  snprintf(portstr, 6, "%d", me->port);
-
-  if ((rc = getaddrinfo(me->host.c_str(), portstr, &hint, &addrs)) != 0)
-  {
-    SKYLU_LOG_FMT_ERROR(G_LOGGER,
-        "cannot convert the host string '%s'"
-        " to a valid address: %s\n", me->host.c_str(), gai_strerror(rc));
-    return -1;
-  }
-
-  for (a = addrs; a != NULL; a = a->ai_next)
-  {
-    m_sockFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (m_sockFd < 0) {
-      SKYLU_LOG_FMT_ERROR(G_LOGGER,"cannot create socket: %s\n", strerror(errno));
-      continue;
-    }
-    setReuseaddr();
-    setRecvTimeout(m_config.heartbeat_ms);
-
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"binding udp %s:%d\n", me->host.c_str(), me->port);
-    if (bind(m_sockFd, a->ai_addr, a->ai_addrlen) < 0) {
-      SKYLU_LOG_FMT_ERROR(G_LOGGER,"cannot bind the socket: %s\n", strerror(errno));
-      close(m_sockFd);
-      continue;
-    }
-    assert(a->ai_addrlen <= sizeof(me->addr));
-    memcpy(&me->addr, a->ai_addr, a->ai_addrlen);
-    return m_sockFd;
-  }
-
-  SKYLU_LOG_FMT_ERROR(G_LOGGER,"cannot resolve the host string '%s' to a valid address\n",
-        me->host.c_str()
-  );
-  return -1;
-}
 
 
 bool Raft::msgSize(MsgData *m, int mlen) {
   switch (m->msgtype) {
   case kMsgUpdate:
-    return mlen == sizeof(MsgUpdate) + ((MsgUpdate*)m)->len -1;
+    return mlen == static_cast<int>(sizeof(MsgUpdate)) + ((MsgUpdate*)m)->len -1;
   case kMsgDone:
     return mlen == sizeof(MsgDone);
   case kMsgClaim:
@@ -261,14 +173,12 @@ void Raft::send(int dst, void *data, int len) {
   assert(dst != m_me);
   assert(((MsgData*)data)->from == m_me);
 
-  Peer *peer = m_peers[dst];
+  auto peer = m_peers[dst];
 
 
-  int sent = sendto(
-      m_sockFd, data, len, 0,
-      (struct sockaddr*)&peer->addr, sizeof(peer->addr)
-  );
-  if (sent == -1) {
+  int res = m_socket->sendTo(data,len,peer->host->getLocalAddress());
+
+  if (res == -1) {
     SKYLU_LOG_FMT_ERROR(G_LOGGER,
         "failed to send a msg to [%d]: %s\n",
         dst, strerror(errno)
@@ -289,71 +199,72 @@ void Raft::beat(int dst){
     return;
   }
 
-  assert(m_role == Leader);
   assert(m_leaderId == m_me);
+  assert(m_role == Leader);
 
-  Peer * p = m_peers[dst];
+  auto p = m_peers[dst];
 
-  MsgUpdate *m = (MsgUpdate*)malloc(sizeof(MsgUpdate)+m_config.chunk_len - 1);
-
-
-
+  auto msg = (MsgUpdate*)malloc(sizeof(MsgUpdate)+m_config.chunk_len - 1);
 
   if (p->acked.entries <= logLastIndex()) {
+    // 同步之前的log
     int sendindex;
 
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"%d has acked %d:%d\n", dst, p->acked.entries, p->acked.bytes);
 
     if (p->acked.entries < logFirstIndex()) {
-      // The peer has woken up from anabiosis. Send the first
-      // log entry (which is usually a snapshot).
+      // 这里的情况通常是peer 重新上线
+
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"sending the snapshot to %d\n", dst);
       sendindex = logFirstIndex();
+      //发送snapshot
       assert(log(sendindex)->snapshot);
     } else {
-      // The peer is a bit behind. Send an update.
+      // Peer 只有少量没有提交的情况
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"sending update %d snapshot to %d\n", p->acked.entries, dst);
       sendindex = p->acked.entries;
     }
-    m->snapshot = log(sendindex)->snapshot;
+
+    msg->snapshot = log(sendindex)->snapshot;
+
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"will send index %d to %d\n", sendindex, dst);
 
-    m->previndex = sendindex - 1;
-    Entry *e = log(sendindex);
+    msg->previndex = sendindex - 1;
+    Entry *entry = log(sendindex);
 
-    if (m->previndex >= 0) {
-      m->prevterm = log(m->previndex)->term;
+    if (msg->previndex >= 0) {
+      msg->prevterm = log(msg->previndex)->term;
     } else {
-      m->prevterm = -1;
+      msg->prevterm = -1;
     }
-    m->entryTerm = e->term;
-    m->totalLen = e->update.len;
-    m->empty = false;
-    m->offset = p->acked.bytes;
-    m->len = std::min(m_config.chunk_len, m->totalLen - m->offset);
-    assert(m->len > 0);
-    memcpy(m->data, e->update.data + m->offset, m->len);
+    msg->entryTerm = entry->term;
+    msg->totalLen = entry->update.len;
+    msg->empty = false;
+    msg->offset = p->acked.bytes;
+    msg->len = std::min(m_config.chunk_len, msg->totalLen - msg->offset);
+    assert(msg->len > 0);
+    memcpy(msg->data, entry->update.data + msg->offset, msg->len);
   } else {
-    // The peer is up to date. Send an empty heartbeat.
+    // 最新的entry  发送心跳
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"sending empty heartbeat to %d\n", dst);
-    m->empty = true;
-    m->len = 0;
+    msg->empty = true;
+    msg->len = 0;
   }
-  m->acked = m_log.acked;
+  msg->acked = m_log.acked;
 
   p->sequence++;
-  m->msg.sequence = p->sequence;
-  if (!m->empty) {
+  msg->msg.sequence = p->sequence;
+  if (!msg->empty) {
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,
         "sending seqno=%d to %d: offset=%d size=%d total=%d term=%d snapshot=%s\n",
-        m->msg.sequence, dst, m->offset, m->len, m->totalLen, m->entryTerm, m->snapshot ? "true" : "false"
+        msg->msg.sequence, dst, msg->offset, msg->len, msg->totalLen, msg->entryTerm, msg->snapshot ? "true" : "false"
     );
   } else {
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"sending seqno=%d to %d: heartbeat\n", m->msg.sequence, dst);
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"sending seqno=%d to %d: heartbeat\n", msg->msg.sequence, dst);
   }
 
-  send(dst, m, sizeof(MsgUpdate) + m->len - 1);
-  free(m);
+  send(dst, msg, sizeof(MsgUpdate) + msg->len - 1);
+  free(msg);
 
 
 }
@@ -368,16 +279,13 @@ void Raft::resetBytesAcked() {
 void Raft::resetSilentTime(int id) {
   for(int i=0;i<m_config.peernum_max;i++){
     if((i == id)||(id == NOBODY)){
+      Mutex::Lock lock(m_peers[i]->mutex);
       m_peers[i]->silent_ms = 0;
     }
   }
 }
 
-/**
- * 增加peer等待时间
- * @param ms
- * @return 尚未超时的peer数量
- */
+
 int Raft::increaseSilentTime(int ms) {
   int recent_peers = 1;
   for(int i=0;i<m_config.peernum_max;i++){
@@ -385,7 +293,9 @@ int Raft::increaseSilentTime(int ms) {
       continue;
     if( i == m_me)
       continue;
+    Mutex::Lock  lock(m_peers[i]->mutex);
     m_peers[i]->silent_ms +=ms;
+
     if(m_peers[i]->silent_ms < m_config.election_ms_max){
       recent_peers++;
     }
@@ -396,7 +306,7 @@ int Raft::increaseSilentTime(int ms) {
 
 
 bool Raft::becomeLeader() {
-  if(m_votes *2 > m_peerNum){
+  if(m_votes *2 > static_cast<int>(m_peers.size())){
     m_role = Leader;
     m_leaderId = m_me;
     resetBytesAcked();
@@ -404,7 +314,6 @@ bool Raft::becomeLeader() {
     resetTimer();
     SKYLU_LOG_DEBUG(G_LOGGER)<<"become the leader";
     return  true;
-
   }
   return  false;
 }
@@ -419,7 +328,7 @@ void Raft::claim() {
     return ;
   }
 
-  MsgClaim m;
+  MsgClaim m{};
   m.msg.msgtype = kMsgClaim;
   m.msg.curterm = m_term;
   m.msg.from = m_me;
@@ -436,7 +345,7 @@ void Raft::claim() {
       continue;
     if(i == m_me)
       continue;
-    Peer * p= m_peers[i];
+    auto p= m_peers[i];
     p->sequence++;
     m.msg.sequence = p->sequence;
 
@@ -446,35 +355,34 @@ void Raft::claim() {
 
 void Raft::refreshAcked() {
 
-  // TODO: count 'acked' inside the entry itself to remove the nested loop here
-  int i, j;
-  for (i = 0; i < m_config.peernum_max; i++) {
-    Peer *p = m_peers[i];
+  for (int i = 0; i < m_config.peernum_max; i++) {
+    auto p = m_peers[i];
     if (i == m_me) continue;
     if (!p->up) continue;
 
     int newacked = p->acked.entries;
-    if (newacked <= m_log.acked) continue;
 
-    int replication = 1; // count self as yes
-    for (j = 0; j < m_config.peernum_max; j++) {
+    if (newacked <= m_log.acked)
+      continue;
+
+    int replication = 1; // 日志复制成功的数量 （包括自己）
+    for (int j = 0; j < m_config.peernum_max; j++) {
       if (j == m_me) continue;
 
-      Peer *pp = m_peers[j];
-      if (pp->acked.entries >= newacked) {
+      auto tmp = m_peers[j];
+      if (tmp->acked.entries >= newacked) {
         replication++;
       }
     }
 
-    assert(replication <= m_peerNum);
+    assert(replication <= static_cast<int>(m_peers.size()));
 
-    if (replication * 2 > m_peerNum) {
+    if (replication * 2 > static_cast<int>(m_peers.size())) {
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"===== GLOBAL PROGRESS: %d\n", newacked);
       m_log.acked = newacked;
     }
   }
 
-  // Try to apply all entries which have been replicated on a majority.
   int applied = apply();
   if (applied) {
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"applied %d updates\n", applied);
@@ -484,8 +392,6 @@ void Raft::refreshAcked() {
 
 void Raft::tick(int msec) {
 
-  m_timer -= msec;
-  if (m_timer < 0) {
     switch (m_role) {
     case Follower:
       SKYLU_LOG_INFO(G_LOGGER)<<
@@ -509,49 +415,55 @@ void Raft::tick(int msec) {
       beat(NOBODY);
       break;
     }
-    resetTimer();
-  }
-  refreshAcked();
+   resetTimer();
+   refreshAcked();
 
+
+}
+
+void Raft::checkIsLeaderWithMs()
+{
   // 通过计算每个peer的选举心跳时间来判断自己现在是不是leader
-  int recent_peers = increaseSilentTime( msec);
-  if ((m_role == Leader) && (recent_peers * 2 <= m_peerNum)) {
+  int recent_peers = increaseSilentTime(m_config.heartbeat_ms);
+  if ((m_role == Leader)
+      && (recent_peers * 2 <= static_cast<int>(m_peers.size()))) {
     SKYLU_LOG_INFO(G_LOGGER)<<"lost quorum, demoting";
-    m_leaderId = NOBODY;
-    m_role = Follower;
+    // 所有变更身份的操作都移动到主线程来操作 减少锁的使用
+    m_loop->runInLoop(std::bind(&Raft::becomeFollower,this));
   }
+
+
 }
 
 int Raft::compact() {
 
-  Log *l = &m_log;
-  int i;
+  Log *logTmp = &m_log;
   int compacted = 0;
-  for (i = l->first; i < l->applied; i++) {
-    Entry *e = log(i);
+  // 本地log
+  for (int i = logTmp->first; i < logTmp->applied; i++) {
+    Entry *entry = log(i);
 
-    e->snapshot = false;
-    free(e->update.data);
-    e->update.len = 0;
-    e->update.data = NULL;
+    entry->snapshot = false;
+    free(entry->update.data);
+    entry->update.len = 0;
+    entry->update.data = nullptr;
 
     compacted++;
   }
   if (compacted) {
-    l->first += compacted - 1;
-    l->size -= compacted - 1;
-    Entry*e = log(logFirstIndex());
-    e->update = m_config.snapshooter(m_config.userdata);
-    e->bytes = e->update.len;
-    e->snapshot = true;
-    assert(l->first == l->applied - 1);
+    logTmp->first += compacted - 1;
+    logTmp->size -= compacted - 1;
+    Entry*entry = log(logFirstIndex());
+    entry->update = m_config.snapshooter(m_config.userdata);
+    entry->bytes = entry->update.len;
+    entry->snapshot = true;
+    assert(logTmp->first == logTmp->applied - 1);
 
-    // reset bytes progress of peers that were receiving the compacted entries
-    for (i = 0; i < m_config.peernum_max; i++) {
-      Peer *p = m_peers[i];
+    for (int i = 0; i < m_config.peernum_max; i++) {
+      auto p = m_peers[i];
       if (!p->up) continue;
       if (i == m_me) continue;
-      if (p->acked.entries + 1 <= l->first)
+      if (p->acked.entries + 1 <= logTmp->first)
         p->acked.bytes = 0;
     }
   }
@@ -579,9 +491,7 @@ bool Raft::restore(int previndex, Entry *e) {
   *newEntry =  *e;
   m_config.applier(m_config.userdata,log(index)->update,true /*snapshot*/);
   m_log.applied = index + 1;
-
-
-
+  return true;
 
 
 
@@ -602,14 +512,14 @@ int Raft::emit(Update update){
   }
 
   int newindex = logLastIndex()+1;
-  Entry * e = log(newindex);
-  e->term = m_term;
-  assert(e->update.len == 0);
-  assert(e->update.data == nullptr);
-  e->update.len = update.len;
-  e->bytes = update.len;
-  e->update.data =(char *)malloc(update.len);
-  memcpy(e->update.data,update.data,update.len);
+  Entry * entry = log(newindex);
+  entry->term = m_term;
+  assert(entry->update.len == 0);
+  assert(entry->update.data == nullptr);
+  entry->update.len = update.len;
+  entry->bytes = update.len;
+  entry->update.data =(char *)malloc(update.len);
+  memcpy(entry->update.data,update.data,update.len);
   m_log.size++;
 
   beat(NOBODY);
@@ -620,11 +530,14 @@ int Raft::emit(Update update){
 bool Raft::appendable(int previndex, int prevterm) {
   int low=0,high=0;
   low = logFirstIndex();
-  if(low == 0) low = -1;
+  if(low == 0)
+  {
+    low = -1;
+  }
   high = logLastIndex();
-  if(!inrange(low,previndex,high)){
+  if(!inRange(low,previndex,high)){
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,
-                        "previndex %d is outside log range %d-%d\n",
+                        "previndex %d is outside log range %d-%d",
                         previndex,low,high);
     return false;
   }
@@ -634,6 +547,7 @@ bool Raft::appendable(int previndex, int prevterm) {
     if(entry->term != prevterm){
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,
                           "Log term %d != prevterm %d",entry->term,prevterm);
+      return false;
     }
   }
 
@@ -644,26 +558,27 @@ bool Raft::append(int previndex, int prevterm, Entry *e) {
   assert(e->bytes == e->update.len);
   assert(!e->snapshot);
 
-  Log *l = &m_log;
 
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,
       "log_append(%p, previndex=%d, prevterm=%d,"
       " term=%d)\n",
-      (void *)l, previndex, prevterm,
+      (void *)&m_log, previndex, prevterm,
       e->term
   );
 
-  if (!appendable(previndex, prevterm)) return false;
+  if (!appendable(previndex, prevterm))
+  {
+    return false;
+  }
 
   if (previndex == logLastIndex()) {
-    SKYLU_LOG_DEBUG(G_LOGGER)<<"previndex == last\n";
-    // appending to the end
-    // check if the log can accomodate
-    if (l->size == m_config.log_len) {
+    SKYLU_LOG_DEBUG(G_LOGGER)<<"previndex == last";
+
+    if (logIsFull()) {
       SKYLU_LOG_DEBUG(G_LOGGER)<<"log is full";
       int compacted = compact();
       if (compacted) {
-        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"compacted %d entries\n", compacted);
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"compacted %d entries", compacted);
       } else {
         return false;
       }
@@ -674,21 +589,25 @@ bool Raft::append(int previndex, int prevterm, Entry *e) {
   Entry *slot = log(index);
 
   if (index <= logLastIndex()) {
-    // replacing an existing entry
     if (slot->term != e->term) {
-      // entry conflict, remove the entry and all that follow
-      l->size = index - l->first;
+      // 条目冲突 删除这个条目
+      m_log.size = index - m_log.first;
     }
     assert(slot->update.data);
     free(slot->update.data);
+  }else{
+    //成功追加
+    m_log.size++;
+
   }
 
-  if (index > logLastIndex()) {
-    // increase log size if actually appended
-    l->size++;
-  }
   *slot = *e;
-  // TODO raft_entry_init(e);
+  e->term = 0;
+  e->update.data = nullptr ;
+  e->update.userdata = nullptr;
+  e->update.len = 0;
+  e->bytes = 0;
+  e->snapshot = false;
 
   return true;
 }
@@ -701,91 +620,102 @@ void Raft::handleUpdate(MsgUpdate *msg) {
   reply.msg.curterm = m_term;
   reply.msg.from = m_me;
   reply.msg.sequence = msg->msg.sequence;
+  reply.success = false;
 
-  Entry *e = &m_log.newentry;
-  Update *u = &e->update;
+  Entry *entry = &m_log.newentry;
+  Update *update = &entry->update;
 
-  // The entry should either be an empty heartbeat, or be appendable, or be a snapshot.
-  if (!msg->empty && !msg->snapshot && !appendable( msg->previndex, msg->prevterm)) goto finish;
+  // 该条目 应该是 心跳包或快照或者是日志条目
+  if (!msg->empty && !msg->snapshot &&
+      !appendable(msg->previndex, msg->prevterm))
+    goto finish;
 
   if (logLastIndex() >= 0) {
     reply.entryTerm = log(logLastIndex())->term;
   } else {
     reply.entryTerm = -1;
   }
-  reply.success = false;
 
-  // the message is too old
   if (msg->msg.curterm < m_term) {
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"refuse old message %d < %d\n", msg->msg.curterm, m_term);
+    // 拒绝旧的信息
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER, "refuse old message %d < %d",
+                        msg->msg.curterm, m_term);
     goto finish;
   }
 
-  if (sender !=m_leaderId) {
-    SKYLU_LOG_FMT_INFO(G_LOGGER,"changing leader to %d\n", sender);
+  if (sender != m_leaderId) {
+    SKYLU_LOG_FMT_INFO(G_LOGGER, "changing leader to %d", sender);
     m_leaderId = sender;
   }
-
-  m_peers[sender]->silent_ms = 0;
+  {
+    Mutex::Lock lock(m_peers[sender]->mutex);
+    m_peers[sender]->silent_ms = 0;
+  }
   resetTimer();
 
-  // Update the global progress sent by the leader.
   if (msg->acked > m_log.acked) {
+    // 更新 本地log的acked
     m_log.acked = std::min(
         m_log.first + m_log.size,
         msg->acked
     );
-    Peer *p = m_peers[sender];
+    auto p = m_peers[sender];
     p->acked.entries = m_log.acked;
     p->acked.bytes = 0;
   }
 
   if (!msg->empty) {
+    // snapshot 或 entry
+
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,
-        "got a chunk seqno=%d from %d: offset=%d size=%d total=%d term=%d snapshot=%s\n",
+        "got a chunk sequence=%d from %d: offset=%d size=%d total=%d term=%d snapshot=%s",
         msg->msg.sequence, sender, msg->offset, msg->len, msg->totalLen, msg->entryTerm, msg->snapshot ? "true" : "false"
     );
 
-    if ((msg->offset > 0) && (e->term != msg->entryTerm)) {
+    if ((msg->offset > 0) && (entry->term != msg->entryTerm)) {
+      // 收到其他任期的msg  重置entry的任期避免损坏
       SKYLU_LOG_INFO(G_LOGGER)<<"a chunk of another version of the entry received, resetting progress to avoid corruption";
-      e->term = msg->entryTerm;
-      e->bytes = 0;
+      entry->term = msg->entryTerm;
+      entry->bytes = 0;
       goto finish;
     }
 
-    if (msg->offset > e->bytes) {
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"unexpectedly large offset %d for a chunk, ignoring to avoid gaps\n", msg->offset);
+    if (msg->offset > entry->bytes) {
+      // chunk 过大 .拒绝
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "unexpectedly large offset %d for a chunk, ignoring to avoid gaps"
+                          , msg->offset);
       goto finish;
     }
 
-    u->len = msg->totalLen;
-    u->data =(char *)realloc(u->data, msg->totalLen);
+    update->len = msg->totalLen;
+    update->data =(char *)realloc(update->data, msg->totalLen);
 
 
-    memcpy(u->data + msg->offset, msg->data, msg->len);
-    e->term = msg->entryTerm;
-    e->bytes = msg->offset + msg->len;
-    assert(e->bytes <= u->len);
+    memcpy(update->data + msg->offset, msg->data, msg->len);
+    entry->term = msg->entryTerm;
+    entry->bytes = msg->offset + msg->len;
+    assert(entry->bytes <= update->len);
 
-    e->snapshot = msg->snapshot;
+    entry->snapshot = msg->snapshot;
 
-    if (e->bytes == u->len) {
-      // The entry has been fully received.
+    if (entry->bytes == update->len) {
+      //这里的包完整接受了
       if (msg->snapshot) {
-        if (!restore(msg->previndex, e)) {
+        if (!restore(msg->previndex, entry)) {
           SKYLU_LOG_INFO(G_LOGGER)<<"restore from snapshot failed";
           goto finish;
         }
       } else {
-        if (!append(msg->previndex, msg->prevterm, e)) {
+        if (!append(msg->previndex, msg->prevterm, entry)) {
           SKYLU_LOG_DEBUG(G_LOGGER)<<"log_append failed";
           goto finish;
         }
       }
     }
   } else {
-    // just a heartbeat
-    e->bytes = 0;
+    // 心跳包
+    entry->bytes = 0;
   }
 
   if (logLastIndex() >= 0) {
@@ -798,10 +728,10 @@ void Raft::handleUpdate(MsgUpdate *msg) {
   reply.success = true;
   finish:
   reply.process.entries = logLastIndex() + 1;
-  reply.process.bytes = e->bytes;
+  reply.process.bytes = entry->bytes;
 
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,
-      "replying with %s to %d, our progress is %d:%d\n",
+      "replying with %s to %d, our progress is %d:%d",
       reply.success ? "ok" : "reject",
       sender,
       reply.process.entries,
@@ -809,7 +739,7 @@ void Raft::handleUpdate(MsgUpdate *msg) {
   );
   send(sender, &reply, sizeof(reply));
 }
-  void Raft::handleDone(MsgDone *msg) {
+void Raft::handleDone(MsgDone *msg) {
     if (m_role != Leader) {
       return;
     }
@@ -819,29 +749,32 @@ void Raft::handleUpdate(MsgUpdate *msg) {
       return;
     }
 
-    Peer *peer = m_peers[sender];
+    auto peer = m_peers[sender];
     if (msg->msg.sequence != peer->sequence) {
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= mseqno(%d) != sseqno(%d)\n",
-                          sender, msg->msg.sequence, peer->sequence);
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "[from %d] ============= mseqno(%d) != sseqno(%d)"
+                          ,sender, msg->msg.sequence, peer->sequence);
       return;
     }
     peer->sequence++;
     if (msg->msg.curterm < m_term) {
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= msgterm(%d) != term(%d)\n", sender, msg->msg.curterm, m_term);
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "[from %d] ============= msgterm(%d) != term(%d)"
+                          , sender, msg->msg.curterm, m_term);
       return;
     }
 
-    // The message is expected and actual.
 
     peer->applied = msg->applied;
 
     if (msg->success) {
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= done (%d, %d)\n",
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= done (%d, %d)",
                             sender, msg->process.entries, msg->process.bytes);
       peer->acked = msg->process;
+      Mutex::Lock lock(peer->mutex);
       peer->silent_ms = 0;
     } else {
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= refused\n", sender);
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"[from %d] ============= refused", sender);
       if (peer->acked.entries > 0) {
         peer->acked.entries--;
         peer->acked.bytes = 0;
@@ -849,7 +782,7 @@ void Raft::handleUpdate(MsgUpdate *msg) {
     }
 
     if (peer->acked.entries <= logLastIndex()) {
-      // send the next entry
+      // 发送下一个entries
       beat(sender);
     }
 
@@ -879,7 +812,7 @@ void Raft::handleUpdate(MsgUpdate *msg) {
       m_role = Follower;
     }
 
-    MsgVote reply;
+    MsgVote reply{};
     reply.msg.msgtype = kMsgVote;
     reply.msg.curterm = m_term;
     reply.msg.from = m_me;
@@ -889,7 +822,7 @@ void Raft::handleUpdate(MsgUpdate *msg) {
 
     if (msg->msg.curterm < m_term) goto finish;
 
-    // check if the candidate's log is up to date
+    // 检查日志是否是最新的
     if (msg->index < logLastIndex()) goto finish;
     if (msg->index == logLastIndex()) {
       if ((msg->index >= 0) && (log(msg->index)->term != msg->lastTerm)) {
@@ -897,29 +830,47 @@ void Raft::handleUpdate(MsgUpdate *msg) {
       }
     }
 
-    // Grant the vote if we haven't voted in the current term, or if we
-    // have voted for the same candidate.
+    // 当手上还有选票 或者 上一轮选举已经投给candidate 的时候 投出选票
     if ((m_voteFor == NOBODY) || (m_voteFor == candidate)) {
       m_voteFor = candidate;
       resetTimer();
       reply.granted = true;
     }
     finish:
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"voting %s %d\n", reply.granted ? "for" : "against", candidate);
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "voting %s %d\n",
+                          reply.granted ? "for" : "against", candidate);
     send(candidate, &reply, sizeof(reply));
 
   }
 
   void Raft::handleVote(MsgVote *msg) {
-    int sender = msg->msg.from;
-    Peer *peer = m_peers[sender];
-    if (msg->msg.sequence != peer->sequence) return;
+    auto peer = m_peers[msg->msg.from];
+    if (msg->msg.sequence != peer->sequence)
+    {
+      // 可能出现因为网络原因过期的包
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "old msg sequence = %d, current msg sequence = %d"
+                          ,msg->msg.sequence,peer->sequence);
+      return;
+    }
     peer->sequence++;
-    if (msg->msg.curterm < m_term) return;
+    if (msg->msg.curterm < m_term)
+    {
 
-    if (m_role != Candidate) return;
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,
+                          "old term  = %d, current term = %d"
+      ,msg->msg.curterm,m_term);
+      return ;
+    }
 
-    if (msg->granted) {
+    if (m_role != Candidate)
+    {
+      return ;
+    }
+
+    if (msg->granted)
+    {
       m_votes++;
     }
 
@@ -952,83 +903,67 @@ void Raft::handleUpdate(MsgUpdate *msg) {
       handleVote((MsgVote *)msg);
       break;
     default:
-      SKYLU_LOG_ERROR(G_LOGGER)<<"unknown message type\n";
+      SKYLU_LOG_ERROR(G_LOGGER)<<"unknown message type";
     }
   }
 
-  MsgData *Raft::recvMessage() {
-    struct sockaddr_in addr;
-    unsigned int addrlen = sizeof(addr);
-    static char buf[UDP_SAFE_SIZE];
+  void Raft::recvMessage(const UdpConnection::ptr& conne,const Address::ptr& remote,Buffer *buff) {
 
-    //try to receive some data
-    MsgData* m = (MsgData*)buf;
-    int recved = recvfrom(
-        m_sockFd, buf, sizeof(buf), 0,
-        (struct sockaddr*)&addr, &addrlen
-    );
+    auto msg = (MsgData*)buff->curRead();
 
-    if (recved <= 0) {
-      if (
-          (errno == EAGAIN) ||
-          (errno == EWOULDBLOCK) ||
-          (errno == EINTR)
-          ) {
-        return NULL;
-      } else {
-        SKYLU_LOG_ERROR(G_LOGGER)<<"failed to recv: "<<strerror(errno);
-        return NULL;
-      }
-    }
 
-    if (!msgSize(m, recved)) {
+    if (!msgSize(msg, buff->readableBytes())) {
       SKYLU_LOG_ERROR(G_LOGGER)<<
-          "a corrupt msg recved from %s:%d\n"<<
-          inet_ntoa(addr.sin_addr)<<
-          ntohs(addr.sin_port)
+          "a corrupt msg recved from "<<
+          remote->getAddrForString()<<
+          "  Port:"<<remote->getPort()
       ;
-      return NULL;
+      return ;
     }
 
-    if ((m->from < 0) || (m->from >= m_config.peernum_max)) {
+    if ((msg->from < 0) || (msg->from >= m_config.peernum_max)) {
       SKYLU_LOG_FMT_ERROR(G_LOGGER,
           "the 'from' is out of range (%d)\n",
-          m->from
+          msg->from
       );
-      return NULL;
+      return ;
     }
 
-    if (m->from == m_me) {
-      SKYLU_LOG_INFO(G_LOGGER)<<"the message is from myself O_o";
-      return NULL;
+    if (msg->from == m_me) {
+      SKYLU_LOG_INFO(G_LOGGER)<<"the message is from myself ";
+      return ;
     }
 
-    Peer *peer =m_peers[m->from];
-    if (memcmp(&peer->addr.sin_addr, &addr.sin_addr, sizeof(struct in_addr))) {
+    auto peer =m_peers[msg->from];
+    // 识别发送主机是否一致
+    if (peer->host->getLocalAddress()->getAddrForString() != remote->getAddrForString()) {
     SKYLU_LOG_FMT_ERROR(G_LOGGER,
           "the message is from a wrong address %s = %d"
           " (expected from %s = %d)\n",
-          inet_ntoa(peer->addr.sin_addr),
-          peer->addr.sin_addr.s_addr,
-          inet_ntoa(addr.sin_addr),
-          addr.sin_addr.s_addr
+          peer->host->getLocalAddress()->getAddrForString().c_str(),
+          peer->host->getLocalAddress()->getAddr(),
+          remote->getAddrForString().c_str(),
+          remote->getAddr()
       );
+    return ;
     }
-
-    if (peer->addr.sin_port != addr.sin_port) {
+    // 端口是否一致
+    if (peer->host->getLocalAddress()->getPort() != remote->getPort()) {
       SKYLU_LOG_FMT_ERROR(G_LOGGER,
           "the message is from a wrong port %d"
           " (expected from %d)\n",
-          ntohs(peer->addr.sin_port),
-          ntohs(addr.sin_port)
+          peer->host->getLocalAddress()->getPort(),
+          remote->getPort()
       );
+      return ;
     }
+    handleMessage(msg);
 
-    return m;
   }
-  bool Raft::isLeader() { return m_role == Leader; }
-  int Raft::getLeader() { return m_leaderId; }
-
+  void Raft::becomeFollower() {
+    m_leaderId = NOBODY;
+    m_role = Follower;
+  }
   }
 }
 
