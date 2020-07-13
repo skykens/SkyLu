@@ -31,6 +31,8 @@ namespace skylu{
         }
 
     public:
+        constexpr static const double kSecondToMicroSeconds = 0.000001;
+        constexpr  static const double  kSecondToMilliSeconds = 0.001;
         static const int kMicroSecondsPerSecond = 1000 * 1000;
     private:
         int64_t m_microSeconds;  // 开始的时间(微秒
