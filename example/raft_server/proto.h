@@ -5,6 +5,10 @@
 #ifndef SKYLU_RAFT_PROTO_H
 #define SKYLU_RAFT_PROTO_H
 
+#include <sys/types.h>
+#include <functional>
+#include <algorithm>
+#include <vector>
 #define MEAN_FAIL '!'
 #define MEAN_OK   '.'
 #define MEAN_GET  '?'
@@ -151,8 +155,8 @@ typedef union{
 }MsgAny;
 static void usage(char *prog) {
   printf(
-      "Usage: %s -i ID -r ID:HOST:PORT [-r ID:HOST:PORT ...] [-l LOGFILE]\n"
-      "   -l : Run as a daemon and write output to LOGFILE.\n",
+      "Usage: %s -i [本机ID] -r ID:HOST:PORT [-r ID:HOST:PORT ...] [-l LOGFILE]\n"
+      "   -l : 当后台运行的时候 日志写入LOGFILE\n",
       prog
   );
 }

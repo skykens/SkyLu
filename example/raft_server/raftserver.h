@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 #include <unordered_map>
+#include <jansson.h>
 #include "skylu/net/tcpserver.h"
 #include "skylu/net/eventloop.h"
 #include "skylu/net/udpconnection.h"
@@ -18,8 +19,21 @@
 namespace skylu{
 namespace raft{
 
+
+
+
+
 class RaftServer {
 
+  typedef struct Client {
+    typedef std::shared_ptr<Client> ptr;
+    //TcpConnection::ptr conne;
+    int expect;  // 对应修改的日志index
+    Client()
+        :expect(-1){}
+  } Client;
+
+public:
   explicit RaftServer(EventLoop *owner
                       , std::string  name
                       ,int argc,char **argv);
@@ -39,12 +53,16 @@ class RaftServer {
    * 设置客户端消息来的时候的回调
    * @param cb
    */
-  void setMessageCallback(const TcpConnection::MessageCallback &cb){m_server->setMessageCallback(cb);}
+  //void setMessageCallback(const TcpConnection::MessageCallback &cb){m_message_cb = cb;}
   void init();
   void run();
 
 private:
   bool loadConfig();
+  void onMessage(const TcpConnection::ptr &conne,Buffer *buff);
+  void onCloseConnection(const TcpConnection::ptr &conne);
+
+  void CheckClientApplied();
 
 
 
@@ -63,6 +81,8 @@ private:
   int m_argc;
   char ** m_argv;
   bool m_init;
+  std::unordered_map<TcpConnection::ptr,Client * > m_wait_clients;  //TODO 使用更高效的数据结构？
+  json_t * m_state;
 
 };
 }

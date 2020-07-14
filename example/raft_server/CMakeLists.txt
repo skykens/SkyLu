@@ -9,4 +9,4 @@ add_subdirectory(../../skylu skylu.out)
 include_directories(../../)
 
 add_executable(skylu_raft main.cc ${DIR_SRCS})
-target_link_libraries(skylu_raft skylu pthread)
+target_link_libraries(skylu_raft skylu pthread libjansson.a)

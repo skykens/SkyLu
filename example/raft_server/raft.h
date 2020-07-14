@@ -73,7 +73,6 @@ public:
     int applied;  /// 心跳包发出去的数量 ：leader时
     Socket::ptr host;
     int silent_ms;   /// 等待时间
-    Mutex mutex;
     Peer():up(false)
         ,sequence(0)
         ,applied(0)
@@ -95,9 +94,12 @@ public:
    * @return
    */
   Peer::ptr peerUp(int id,const std::string& host,int port,bool self);
+
   int progress() const{return m_log.applied;}
   void peerDown(int id);
   void resetTimer();
+  void setConneToPeer(const UdpConnection::ptr & conne){m_conne_to_peer = conne;}
+  void setCheckWaitClientCallback(const std::function<void()> &cb){ m_check_cient_cb = cb;}
 
   /**
    * 写请求到来需要发送同步信息到其他peer
@@ -180,6 +182,12 @@ private:
    * @return
    */
   int compact();
+  /**
+   * 从快照中恢复
+   * @param previndex
+   * @param e
+   * @return
+   */
   bool restore(int previndex,Entry *e);
   /**
    * 判断能不能追加日志
@@ -233,16 +241,19 @@ private:
   int m_me; // 自己的id
   int m_votes;//票数
   int m_leaderId;
-  Socket::ptr  m_socket; // udp socket 用来接收、发送
+  int m_timer;  // 定时器
+  Socket::ptr  m_socket; // udp socket   // 仅用来bind端口
+  UdpConnection::ptr m_conne_to_peer;  // 发送数据给其他peer 的
+
 
   EventLoop *m_loop;
-  Timerid m_candidate_timer;
-  Timerid m_hartbeat_timer;
   Config m_config;
 
   Log m_log;
 
   std::vector<Peer::ptr> m_peers;
+  int m_peerNum;  // 上线的peer数量
+  std::function<void()> m_check_cient_cb;
 
 
 };
