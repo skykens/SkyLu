@@ -29,7 +29,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         typedef std::function<void(const TcpConnection::ptr&)> CloseCallback;
         typedef std::function<void(const TcpConnection::ptr&)> WriteCompleteCallback;
         typedef std::function<void(const TcpConnection::ptr& ,size_t)> HighWaterMarkCallback;
-        TcpConnection(EventLoop * loop,Socket::ptr socket,std::string name);
+        TcpConnection(EventLoop * loop,const Socket::ptr& socket,std::string name);
         ~TcpConnection() = default;
 
         /**
