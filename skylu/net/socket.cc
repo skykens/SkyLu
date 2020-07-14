@@ -13,6 +13,7 @@ Socket::ptr Socket::CreateUDP(skylu::Address::ptr address) {
     Socket::ptr sock(new Socket(address->getFamily(), UDP));
     sock->newSocket();
     sock->m_isConnected = true;
+    sock->m_LocalAddress = address;
     return sock;
 }
 
@@ -93,6 +94,7 @@ bool Socket::bind(const Address::ptr addr){
         SKYLU_LOG_ERROR(G_LOGGER)<<"bind("<<m_fd<<")"
             <<" error ="<<errno
             <<"  strerr ="<<strerror(errno);
+        exit(EXIT_FAILURE);
         return false;
     }
     getLocalAddress();

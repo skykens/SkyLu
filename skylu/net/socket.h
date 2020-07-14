@@ -44,10 +44,13 @@ public:
 
     /**
      * @brief 创建TCP连接 IPv4
+     * 仅仅是创建了socket  后续还是需要Listen、bind、connect等操作
      */
     static Socket::ptr CreateTCP(Address::ptr address);
     /*
      * @brief 创建UDP连接 IPv4
+     * 对于客户端来说创建了之后直接send、recv就好了,且address的端口可以无所谓
+     * 但是对于服务端来说还需要调用bind
      */
     static Socket::ptr CreateUDP(Address::ptr address);
 
@@ -142,6 +145,9 @@ public:
      */
     Address::ptr getLocalAddress();
     Address::ptr getRemoteAddress();
+
+    void setLoaclAddress(const Address::ptr &local){m_LocalAddress = local;}
+    void setRemoteAddress(const Address::ptr &remote){m_RemoteAddress = remote;}
 
 
     /**
