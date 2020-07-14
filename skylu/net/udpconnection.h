@@ -27,7 +27,7 @@ public:
   typedef std::function<void(const UdpConnection::ptr&)> CloseCallback;
   typedef std::function<void(const UdpConnection::ptr&,const Address::ptr& remote)> WriteCompleteCallback;
   typedef std::function<void(const UdpConnection::ptr& ,size_t,const Address::ptr& remote)> HighWaterMarkCallback;
-  UdpConnection(EventLoop * loop,Socket::ptr socket,std::string name);
+  UdpConnection(EventLoop * loop,const Socket::ptr& socket,std::string name);
   ~UdpConnection() = default;
 
   /**
@@ -72,6 +72,11 @@ public:
 
   void send(const std::string & message,const Address::ptr& addr);
   void send(const void *message,size_t len,const Address::ptr& addr);
+  /**
+   * 发送完成后会把buf中指针重置
+   * @param buf
+   * @param addr
+   */
   void send(Buffer *buf,const Address::ptr& addr);
 
 

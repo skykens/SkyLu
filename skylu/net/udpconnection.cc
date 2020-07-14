@@ -6,10 +6,10 @@
 
 #include <utility>
 namespace skylu{
-UdpConnection::UdpConnection(EventLoop *loop, Socket::ptr socket,std::string  name)
+UdpConnection::UdpConnection(EventLoop *loop, const Socket::ptr& socket,std::string  name)
     :m_state(kConnected)
     ,m_loop(loop)
-    ,m_socket(std::move(socket))
+    ,m_socket(socket)
     ,m_channel(new Channel(m_loop,m_socket->getSocket()))
     ,m_name(std::move(name)),
      m_highMark(64*1024*1024){  //高水位的位置应该是64K
@@ -47,7 +47,7 @@ void UdpConnection::handleRead() {
 
   assert(m_loop->isInLoopThread());
   int savedError;
-  Address::ptr addr;
+  Address::ptr addr(new IPv4Address());
   ssize_t  n = m_input_buffer.readFd(m_channel->getFd(),&savedError,addr);
   if(n > 0){
     if(m_message_cb){
