@@ -131,7 +131,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
                 it.second->restart(now);
                 insert(it.second);
             }else{
-                delete it.second;  //这个地方可能会有风险
+                delete it.second;  /// TODO 直接删除的话这个地方可能会有风险
             }
 
         }
@@ -146,7 +146,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
     }
     std::vector<TimerQueue::Entry> TimerQueue::getExpired(Timestamp now) {
         assert(m_timers.size() == m_activerTimers.size());
-        std::vector<Entry > expired;
+        std::vector<Entry > expired;  /// 存放到期后的定时器
         Entry sentry = std::make_pair(now, reinterpret_cast<Timer *>(UINTPTR_MAX));
         auto  it = m_timers.lower_bound(sentry);
         assert(it == m_timers.end() || now < it->first);
@@ -182,6 +182,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
         auto it = m_activerTimers.find(active);
 
         if(it != m_activerTimers.end()){
+            /// Timer尚未被调用 可以安全删除
             size_t  n = m_timers.erase(Entry(it->first->getExpiration(),it->first));
             assert(n ==1);
             delete it->first;

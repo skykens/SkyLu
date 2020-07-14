@@ -35,8 +35,17 @@ namespace skylu{
 
 
     private:
+      /**
+       * Timerfd到期后的回调函数
+       */
         void handleRead();
-        std::vector<Entry> getExpired(Timestamp now);    //获得到期定时器
+        /**
+         * 获得到期的定时器
+         * @param now  当前时间
+         * @return
+         * 当Timerfd 到期后 找到队列中
+         */
+        std::vector<Entry> getExpired(Timestamp now);
         void reset(const std::vector<Entry>& expired,Timestamp now);
         bool insert(Timer* timer);
         void cancelTimerInLoop(Timerid timer);
@@ -46,7 +55,7 @@ namespace skylu{
         EventLoop* m_loop;
         const int m_timerfd;
         Channel m_timerfdChannel;
-        TimerSet m_timers;;
+        TimerSet m_timers;
         ActiveTimerSet m_activerTimers;
         ActiveTimerSet m_cancelTimers;
         bool isCallingExpired; //是否处在Expired函数中
