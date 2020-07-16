@@ -429,7 +429,7 @@ void Raft::tick(int msec) {
   }
    refreshAcked();
    checkIsLeaderWithMs();
-   if(m_check_cient_cb)
+   if(m_check_cient_cb && isLeader())
       m_check_cient_cb();
 
 
@@ -504,6 +504,13 @@ bool Raft::restore(int previndex, Entry *e) {
   m_log.size = 1;
   Entry * newEntry =  log(index);
   *newEntry =  *e;
+  e->update.data = nullptr;
+  e->update.len = 0;
+  e->update.userdata = nullptr;
+  e->term = 0;
+  e->snapshot = false;
+  e->bytes = 0;
+
   m_config.applier(m_config.userdata,log(index)->update,true /*snapshot*/);
   m_log.applied = index + 1;
   return true;
