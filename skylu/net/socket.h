@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 #include "address.h"
 #include "../base/file.h"
@@ -122,6 +123,8 @@ public:
      * @brief 发送
      */
     virtual ssize_t send(const void * buff, size_t size);
+    virtual ssize_t sendFile(const char * filename);
+
 
     /**
      * @brief 发送到目的地址
@@ -165,6 +168,9 @@ public:
      * @brief 返回socket
      */
     inline int getSocket()const {return m_fd;}
+
+    int getError();
+
 
     /**
      * @brief 设置为非阻塞

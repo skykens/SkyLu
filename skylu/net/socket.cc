@@ -4,7 +4,12 @@ namespace skylu{
 
 
 Socket::ptr Socket::CreateTCP(skylu::Address::ptr address) {
-    Socket::ptr sock(new Socket(address->getFamily(), TCP));
+
+    int family = AF_INET;
+    if(address){
+      family = address->getFamily();
+    }
+    Socket::ptr sock(new Socket(family, TCP));
     sock->newSocket();
     return sock;
 }
@@ -322,12 +327,24 @@ ssize_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
 Socket::~Socket() {
     close();
 }
+    ssize_t Socket::sendFile(const char *filename) {
+      int filefd = open(filename,O_RDONLY);
 
+      ssize_t res = ::sendfile(m_fd,filefd, nullptr,File::getFilesize(filename));
+      if(res < 0){
+        SKYLU_LOG_FMT_ERROR(G_LOGGER,"sendfile error %d ,strerror: %s",errno,strerror(errno));
+      }
+      return res;
+    }
+    int Socket::getError() {
 
+      int optval;
+        socklen_t  optlen = static_cast<socklen_t>(sizeof(optval));
+        if(::getsockopt(m_fd,SOL_SOCKET,SO_ERROR,&optval,&optlen)){
+          return errno;
+        }else{
+          return optval;
+        }
+    }
 
-
-
-
-
-
-}
+    }
