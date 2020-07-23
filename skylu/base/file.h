@@ -83,7 +83,7 @@ namespace skylu {
         /*
          * @brief 向文件中追加一行
          */
-        size_t writeNewLine(std::string & data);
+        size_t writeNewLine(const std::string & data);
 
         /*
          * @brief 判断文件是否存在
@@ -95,8 +95,11 @@ namespace skylu {
          */
         static size_t getFilesize(const std::string &path);
 
-        /*
-         * @brief 重命名
+        /**
+         * 重命名
+         * @param path 旧名
+         * @param name  新名
+         * @return
          */
         static bool rename(const std::string &path,const std::string &name);
 

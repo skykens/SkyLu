@@ -108,7 +108,7 @@ size_t File::readLine(std::string &data,size_t n) {
 
 }
 
-size_t File::writeNewLine(std::string &data) {
+size_t File::writeNewLine(const std::string &data) {
     std::ofstream write(m_path.c_str(),std::ios::app);
     write<<data;
     return data.size();
