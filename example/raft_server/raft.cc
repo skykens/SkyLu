@@ -253,7 +253,7 @@ void Raft::beat(int dst){
     msg->empty = false;
     msg->offset = p->acked.bytes;
     msg->len = std::min(m_config.chunk_len, msg->totalLen - msg->offset);
-    assert(msg->len > 0);  /// TODO  BUG:在掉线后重新上线会出现 问题
+    assert(msg->len > 0);
     memcpy(msg->data, entry->update.data + msg->offset, msg->len);
   } else {
     // 最新的entry  发送心跳
@@ -458,7 +458,7 @@ int Raft::compact() {
 
     entry->snapshot = false;
     assert(entry->update.data);
-    free(entry->update.data); ///TODO BUG 这里会double free
+    free(entry->update.data);
     entry->update.len = 0;
     entry->update.data = nullptr;
 
