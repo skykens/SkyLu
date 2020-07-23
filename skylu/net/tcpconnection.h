@@ -72,6 +72,9 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
             }
         }
 
+        Socket::ptr getSocket(){return m_socket;}
+        int getSocketFd()const {return m_socket->getSocket();}
+
 
         void connectEstablished();
         void connectDestroyed();
@@ -79,6 +82,8 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         void send(const std::string & message);
         void send(const void *message,size_t len);
         void send(Buffer *buf);
+        void sendFile(const char * filename);
+
 
 
         void shutdown();

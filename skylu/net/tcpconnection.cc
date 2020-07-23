@@ -76,9 +76,10 @@ namespace skylu{
         assert(m_state == kConnected || m_state == kdisConnecting);
         setState(kdisConnected);
         m_channel->disableAll();
-        TcpConnection::ptr conne(shared_from_this());
+       // TcpConnection::ptr conne(shared_from_this());
       //  m_connection_cb(conne);
-        m_close_cb(shared_from_this());
+        if(m_close_cb)
+           m_close_cb(shared_from_this());
     }
 
     void TcpConnection::connectDestroyed() {
@@ -190,4 +191,7 @@ namespace skylu{
         }
 
     }
-}
+    void TcpConnection::sendFile(const char *filename) {
+      m_socket->sendFile(filename);
+    }
+    }
