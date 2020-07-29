@@ -25,7 +25,8 @@ namespace skylu{
         return evtfd;
     }
     EventLoop::EventLoop()
-        :isLooping(false)
+        :isQuit(false)
+          ,isLooping(false)
         ,m_threadid(getThreadId())
         ,m_poll(defaultNewPoll(this))
         ,m_timerqueue(new TimerQueue(this))
@@ -57,16 +58,15 @@ namespace skylu{
         return t_loopInThread;
     }
 
-    void EventLoop::loop() {
+    void EventLoop::loop(int timeOutMs) {
         assert(!isLooping);
         assertInLoopThread();
 
         isLooping = true;
-        isQuit = false;
 
         while(!isQuit){
             m_activeChannels.clear();
-           Timestamp now =  m_poll->poll(m_poll_timeoutMs,m_activeChannels);
+           Timestamp now =  m_poll->poll(timeOutMs,m_activeChannels);
             for(auto it : m_activeChannels){
                 it->handleEvent(now);
             }

@@ -23,6 +23,8 @@ namespace skylu{
     class TimerQueue;
     class Poll;
 
+    int createEventfd();
+
     /**
      * one thread one loop
      */
@@ -32,7 +34,7 @@ namespace skylu{
         EventLoop();
         ~EventLoop();
         // 阻塞于多路复用模型的监听接口上
-        void loop();
+        void loop(int timeOutMs = kPollTimeMS);
         // 判断是否处于IO线程中
         void assertInLoopThread();
         /**
@@ -51,6 +53,7 @@ namespace skylu{
          */
         void removeChannel(Channel *channel);
 
+        bool isStop(){return isQuit;}
         /**
          * 关闭  如果所在不是IO线程则唤醒eventfd
          */
