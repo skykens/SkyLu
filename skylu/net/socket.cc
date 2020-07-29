@@ -334,6 +334,7 @@ Socket::~Socket() {
       if(res < 0){
         SKYLU_LOG_FMT_ERROR(G_LOGGER,"sendfile error %d ,strerror: %s",errno,strerror(errno));
       }
+      ::close(filefd);
       return res;
     }
     int Socket::getError() {
