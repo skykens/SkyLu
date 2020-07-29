@@ -67,6 +67,8 @@ public:
      * @brief 修改当前所处线程示例名称
      */
     static void SetName(const std::string& name);
+
+    void stop();
 private:
     /**
      * @brief 初始化的时候使用的函数

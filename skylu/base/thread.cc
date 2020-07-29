@@ -1,5 +1,5 @@
 #include "thread.h"
-//#include "log.h"
+#include "log.h"
 #include "util.h"
 
 namespace skylu{
@@ -19,7 +19,7 @@ Thread::Thread(std::function<void()> cb,const std::string & name,bool autoStart)
     int ret = pthread_create(&m_thread,nullptr,&Thread::run, this);
     if(ret)
     {
-//        SKYLU_LOG_ERROR(G_LOGGER) << "pthread_create thread fail.ret ="<< ret<< " name="<<name;
+       SKYLU_LOG_ERROR(G_LOGGER) << "pthread_create thread fail.ret ="<< ret<< " name="<<name;
     }else{
         m_semaphore.wait(); //保证在run函数相关准备完成之后构造函数才结束
     }
@@ -32,6 +32,7 @@ void Thread::start() {
 }
 Thread::~Thread()
 {
+    stop();
     if(m_thread)
     {
         pthread_detach(m_thread);
@@ -94,6 +95,10 @@ void Thread::SetName(const std::string & name)
 
     }
     t_thread_name = name;
+}
+void Thread::stop() {
+  m_isStart = false;
+  m_semaphore.notify();
 }
 
 }
