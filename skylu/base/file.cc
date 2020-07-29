@@ -110,7 +110,7 @@ size_t File::readLine(std::string &data,size_t n) {
 
 size_t File::writeNewLine(const std::string &data) {
     std::ofstream write(m_path.c_str(),std::ios::app);
-    write<<data;
+    write<<data<<"\n";
     return data.size();
 
 }
@@ -120,7 +120,7 @@ bool File::isExits(const std::string &path) {
     if(access(path.c_str(),F_OK|W_OK|R_OK) == 0){
         return true;
     }else{
-        SKYLU_LOG_ERROR(G_LOGGER)<<" access errno ="<<errno
+        SKYLU_LOG_DEBUG(G_LOGGER)<<" access errno ="<<errno
         <<"    strerrno="<<strerror(errno);
         return false;
     }

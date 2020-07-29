@@ -3,8 +3,9 @@
 //
 
 #include "connector.h"
-#include <assert.h>
 namespace skylu {
+const int Connector::kMaxRetryDelayMs;
+const int Connector::kInitRetryDelayMs;
 Connector::Connector(EventLoop *loop,
                             const Address::ptr &addr)
   :m_loop(loop)
@@ -17,7 +18,7 @@ Connector::Connector(EventLoop *loop,
 
 }
 Connector::~Connector() {
-  assert(!m_channel);
+  //assert(!m_channel);
 }
 void Connector::start() {
 
@@ -46,7 +47,6 @@ void Connector::connect() {
   if(!m_socket->connect(m_server_addr)){
     switch (errno)
     {
-    case 0:
     case EINPROGRESS:
     case EINTR:
     case EISCONN:
@@ -78,6 +78,8 @@ void Connector::connect() {
       break;
     }
 
+  }else{
+    connecting();
   }
 
 
