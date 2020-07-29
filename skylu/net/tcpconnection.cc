@@ -183,10 +183,11 @@ namespace skylu{
                     && m_highwater_cb){
                 m_loop->queueInLoop(std::bind(m_highwater_cb,shared_from_this(),oldlen+remaning));
             }
+            SKYLU_LOG_FMT_WARN(G_LOGGER,"TcpConnection::sendInLoop  write too large.remaning= %d",remaning);
             m_output_buffer.append(static_cast<const char*>(data)+nwrite,remaning);
             if(!m_channel->isWriting()){
                 m_channel->enableWriting();
-                SKYLU_LOG_INFO(G_LOGGER)<<"write too large";
+                SKYLU_LOG_WARN(G_LOGGER)<<"write too large";
             }
         }
 

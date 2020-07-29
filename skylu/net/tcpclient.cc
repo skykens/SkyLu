@@ -26,6 +26,9 @@ TcpClient::TcpClient(EventLoop *loop, const Address::ptr &server,
 }
 TcpClient::~TcpClient() {
   TcpConnection::ptr conne = nullptr;
+  if(m_loop->isStop()){
+    return;
+  }
   bool unique = false;
   {
     Mutex::Lock lock(m_mutex);
@@ -46,9 +49,6 @@ TcpClient::~TcpClient() {
     }
 
 
-  }else{
-    // 已经remove connection
-    m_connector->stop();
   }
 
 

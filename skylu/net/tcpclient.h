@@ -21,7 +21,7 @@ public:
   void connect();
   void disconnect();
   void stop();
-  const TcpConnection::ptr& getConnection() const {return m_connection;}
+  inline const TcpConnection::ptr& getConnection() const {return m_connection;}
 
   bool isRetry()const {return m_isRetry;}
   bool enableConnect() const {return m_enableConnect;}
