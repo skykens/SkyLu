@@ -13,6 +13,7 @@
 #include "address.h"
 #include <functional>
 #include <memory>
+#include <assert.h>
 
 #include <algorithm>
 
@@ -23,8 +24,13 @@ namespace skylu{
  * 连接器
  */
 class Connector :public std::enable_shared_from_this<Connector>,Nocopyable{
+  static const int kMaxRetryDelayMs = 30*1000;
+  static const int kInitRetryDelayMs = 500;
     public:
-      typedef std::shared_ptr<Connector> ptr;
+  enum  State{
+    kDisconnected,kConnecting,kConnected
+  };
+  typedef std::shared_ptr<Connector> ptr;
         typedef std::function<void(const Socket::ptr &)> NewConnectionCallback;
         Connector(EventLoop *loop,const Address::ptr& addr);
         ~Connector();
@@ -33,11 +39,9 @@ class Connector :public std::enable_shared_from_this<Connector>,Nocopyable{
         void start();
         void restart();
         void stop();
+        const State getState()const {return m_state;}
 
       private:
-        enum  State{
-          kDisconnected,kConnecting,kConnected
-        };
         void setState(State e ){
           m_state = e;
         }
@@ -55,9 +59,7 @@ class Connector :public std::enable_shared_from_this<Connector>,Nocopyable{
 
 
     private:
-      static const int kMaxRetryDelayMs = 30*1000;
-      static const int kInitRetryDelayMs = 500;
-      EventLoop * m_loop;
+  EventLoop * m_loop;
       Address::ptr m_server_addr;
       bool enableConnect; // 允许连接
       State m_state;
