@@ -40,6 +40,10 @@ namespace skylu{
 
     };
 
+    inline int64_t operator-(Timestamp lhs,Timestamp rhs){
+      return lhs.getMicroSeconds() - rhs.getMicroSeconds();
+    }
+
     inline bool operator<(Timestamp lhs,Timestamp rhs){
         return lhs.getMicroSeconds() < rhs.getMicroSeconds();
     }

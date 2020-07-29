@@ -168,7 +168,7 @@ void resetTimerfd(int timerfd, Timestamp expiration)
     Timerid TimerQueue::addTimer(const Timer::TimerCallback &cb,Timestamp when, double interval) {
         auto * timer = new Timer(cb,when,interval);
         m_loop->runInLoop(std::bind(&TimerQueue::addTimerInLoop,this,timer));
-        return {timer,static_cast<uint64_t>(timer->getSequence())};
+        return {timer,timer->getSequence()};
     }
 
     void TimerQueue::cancelTimer(Timerid timer) {
