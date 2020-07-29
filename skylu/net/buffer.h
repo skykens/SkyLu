@@ -51,13 +51,13 @@ namespace skylu {
          *可读字节数
          * @return
          */
-        size_t readableBytes() const { return m_wpos - m_rpos;}
+       inline size_t readableBytes() const { return m_wpos - m_rpos;}
 
         /**
          * 可写字节数
          * @return
          */
-        size_t writeableBytes()const {return m_queue.size() - m_wpos;}
+        inline size_t writeableBytes()const {return m_queue.size() - m_wpos;}
 
         /****
          ** @brief 得到队列的空间大小
@@ -94,13 +94,13 @@ namespace skylu {
         }
 
 
-        const char *curRead() const {
+       inline const char *curRead() const {
 
             return reinterpret_cast<const char *>(m_queue.data()) + m_rpos;
 
         }
 
-        void resetAll(){
+       inline void resetAll(){
             m_rpos = kInitPos;
             m_wpos = kInitPos;
 
