@@ -30,6 +30,10 @@ public:
     };
     Address() = default;
 
+    inline bool operator== (const Address& rhs) const {
+      return m_addr.sin_addr.s_addr == rhs.m_addr.sin_addr.s_addr &&
+             m_addr.sin_port == rhs.m_addr.sin_port;
+    }
     std::string toString() const{
 
         std::stringstream ss;
@@ -50,6 +54,9 @@ public:
     virtual std::string getAddrForString() = 0;
     virtual int getFamily()const = 0;
     virtual ~Address() = default;
+
+  protected:
+  sockaddr_in m_addr{};
 };
 
 class IPv4Address: public Address{
@@ -112,15 +119,14 @@ public:
     int getFamily()const override;
 
 
-    std::string getAddrForString(){return std::string(inet_ntoa(m_addr.sin_addr));}
+    std::string getAddrForString()override {return std::string(inet_ntoa(m_addr.sin_addr));}
 
 
 
 
 
 
-private:
-    sockaddr_in m_addr{};
+
 
         
 };
