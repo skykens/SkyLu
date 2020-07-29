@@ -12,13 +12,13 @@ namespace skylu{
     class Timerid {
     public:
         Timerid():m_sequence(0),m_timer(NULL){}
-        Timerid(Timer* timer,uint64_t seq):m_sequence(seq),m_timer(NULL){}
+        Timerid(Timer* timer,int64_t seq):m_sequence(seq),m_timer(NULL){}
 
-        uint64_t  getSequence()const {return m_sequence;}
+        int64_t  getSequence()const {return m_sequence;}
 
         friend class TimerQueue;
     private:
-        uint64_t m_sequence;
+        int64_t m_sequence;
         Timer * m_timer;
 
 
