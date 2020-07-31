@@ -93,7 +93,9 @@ uint64_t File::getTimeout(OPTION type){
 void File::readAllLine(std::vector<std::string> &data) {
     std::ifstream read(m_path.c_str());
     std::string tmp;
-    while(getline(read,tmp));
+    while(getline(read,tmp)){
+      data.push_back(tmp);
+    }
 }
 
 size_t File::readLine(std::string &data,size_t n) {
@@ -167,7 +169,22 @@ bool File::rename(const std::string &path, const std::string &name) {
 
 
 }
+void File::createDir(const std::string &path, int mode) {
+  if(mkdir(path.c_str(),mode)){
+    SKYLU_LOG_ERROR(G_LOGGER)<<" mkdir errno ="<<errno
+                             <<"    strerrno="<<strerror(errno);
+  }
 
+}
+size_t File::getFilesize() {
+  struct stat filestat;
+  if(stat(m_path.c_str(),&filestat)<0){
+    SKYLU_LOG_ERROR(G_LOGGER)<<" getFilesize errno ="<<errno
+                             <<"    strerrno="<<strerror(errno);
+    return -1;
+  }
+  return filestat.st_size;
 
+}
 
 }

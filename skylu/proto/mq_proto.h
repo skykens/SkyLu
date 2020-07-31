@@ -42,7 +42,7 @@ public:
   uint32_t  pullInteval = 0; // 拉取间隔
   uint32_t  maxEnableBytes = 0; // consumer允许最多的消息
   uint32_t  minEnableBytes = 0; /// consumer最少需要多少消息
-  uint32_t optional = 0; //可选字段
+  uint32_t offset = 0; // 唯一确定每条消息在分区里面的位置
   uint32_t topicBytes = 0;  //主题长度
   uint32_t msgBytes =0; //消息长度
   char body{};  //消息用/r/n多个消息分割

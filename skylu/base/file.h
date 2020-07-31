@@ -38,6 +38,8 @@ namespace skylu {
 
         int getFd() const {return m_fd;}
 
+        std::string getPath()const {return m_path;}
+
         bool isInit() const { return m_isInit; }
 
         bool isSocket() const { return m_isSocket; }
@@ -85,15 +87,37 @@ namespace skylu {
          */
         size_t writeNewLine(const std::string & data);
 
+        ssize_t  write(const void * data, int length){
+          ssize_t  sz = ::write(m_fd,data,length);
+          if(sz < 0){
+            SKYLU_LOG_DEBUG(G_LOGGER)<<" write errno ="<<errno
+                                     <<"    strerrno="<<strerror(errno);
+          }
+          return sz;
+        }
+        ssize_t  read(void *data,int length){
+          ssize_t  sz = ::read(m_fd,data,length);
+          if(sz < 0){
+            SKYLU_LOG_DEBUG(G_LOGGER)<<" read errno ="<<errno
+                                     <<"    strerrno="<<strerror(errno);
+          }
+          return sz;
+        }
+
+
+
         /*
          * @brief 判断文件是否存在
          */
         static bool isExits(const std::string & path);
 
+        static void createDir(const std::string & path,int mode =S_IRUSR | S_IWUSR | S_IXUSR | S_IRWXG | S_IRWXO );
+
         /*
          * @brief 查看文件大小
          */
         static size_t getFilesize(const std::string &path);
+        size_t getFilesize();
 
         /**
          * 重命名
