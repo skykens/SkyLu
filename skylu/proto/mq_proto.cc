@@ -47,7 +47,7 @@ void serializationToBuffer(std::vector<MqPacket> & msg,const std::unordered_set<
     auto * ptr = reinterpret_cast<MqPacket * >(tmp);
     char * body = &(ptr->body);
     memcpy(tmp, reinterpret_cast<const char *>(&msg[i]),sizeof(MqPacket));
-    memcpy(body,it.c_str(),topic.size());
+    memcpy(body,it.c_str(),it.size());
 
     setMqPacketEnd(ptr);
 

@@ -16,6 +16,7 @@ public:
   typedef std::pair<int,std::string> IdAndMessagePair ;
   typedef std::unordered_map<std::string,std::deque<IdAndMessagePair>> TopicMap;  ///topic - id+message
   typedef std::function<void(std::string)> SubscribeCallback;
+  typedef std::function<void(const TopicMap & msg)> PullCallback;
   Consumer(EventLoop * loop,const std::vector<Address::ptr> & dir_addrs,const std::string &name,int id  = -1);
   ~Consumer() override = default;
   void subscribe(const std::string &topic);
@@ -27,6 +28,7 @@ public:
   TopicMap getMessage(){return m_recv_messages;}
   void setSubscribeCallback(const SubscribeCallback &cb){m_subscribe_cb = cb;}
   void setCancelSubscribeCallback(const SubscribeCallback &cb){m_cancel_subscribe_cb = cb;}
+  void setPullCallback(const PullCallback & cb){ m_pull_cb = cb;}
 
 
 private:
@@ -35,6 +37,7 @@ private:
   void onMessageFromMqServer(const TcpConnection::ptr &conne, Buffer *buff) override;
   void onCloseConnection(const TcpConnection::ptr & conne);
   void subscribe(const TcpConnection::ptr &conne);
+  virtual void connectToMqServer()override ;
   void pull(int timeoutMs);
   void handleSubscribe(const MqPacket * msg,const TcpConnection::ptr &conne);
   void handleCommit(const MqPacket *msg,const TcpConnection::ptr &conne);
@@ -51,6 +54,8 @@ private:
   int m_minEnableBytes;
   SubscribeCallback m_subscribe_cb;
   SubscribeCallback m_cancel_subscribe_cb;
+  PullCallback  m_pull_cb;
+
 
 };
 

@@ -25,7 +25,7 @@
 using namespace  skylu;
 class MqBusd : Nocopyable{
   typedef std::unique_ptr<TcpClient> TcpClientPtr;
-  static const int kSendRequesetToDirSecond = 5;  /// 获取Dir注册表的间隔时间（单位：s）
+  static const int kSendRequesetToDirSecond = 8;  /// 获取Dir注册表的间隔时间（单位：s）
 public:
   typedef std::function<void(MqPacket *)> MqBusdMessageCallback;
   typedef TcpConnection::ConnectionCallback MqBusdConnectionCallback;
@@ -50,9 +50,10 @@ protected:
 
   virtual void onConnectionToMqServer(const TcpConnection::ptr & conne);
   virtual void onMessageFromMqServer(const TcpConnection::ptr &conne,Buffer * buff) = 0;
+  virtual void connectToMqServer();
 
   void updateMqSeverConfWithMs();
-  void updateMqServerClients(HostAndPortSet &addrs);
+  void updateMqServerClients();
   void connect();
   void init(const std::vector<Address::ptr> &dir_addrs);
 
@@ -70,8 +71,9 @@ protected:
   bool m_isVaild;
   MqBusdConnectionCallback  m_conne_cb;
 
-  HostAndPortSet  m_addrs;
-  size_t count = 0;
+  HostAndTopicsMap  m_mqserver_info_tmp; ///这个用来作冗余存在的
+  HostAndTopicsMap  m_mqserver_info; ///实际的
+  size_t m_recv_dir_count = 0;
 
 
 };

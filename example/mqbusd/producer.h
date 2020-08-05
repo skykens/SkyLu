@@ -6,19 +6,20 @@
 #define MQBUSD_PRODUCER_H
 
 #include <memory>
-#include <string>
 #include <queue>
+#include <skylu/base/consistenthash.hpp>
 #include <skylu/base/snowflake.h>
 #include <skylu/base/thread.h>
 #include <skylu/net/channel.h>
 #include <skylu/net/eventloop.h>
-#include <skylu/net/channel.h>
+#include <string>
 
 #include "mqbusd.h"
 using namespace skylu;
 class ProducerWrap;
 
-class Producer :public MqBusd,public std::enable_shared_from_this<Producer>{
+class Producer :protected MqBusd,public std::enable_shared_from_this<Producer>{
+  const int kVirtualNodeNum = 50;
 
   friend class ProducerWrap;
 public:
@@ -55,6 +56,7 @@ private:
   void onMessageFromMqServer(const TcpConnection::ptr &conne,Buffer * buff)override ;
   void checkReSendSetTimer();
   void handleDelivery(const MqPacket *msg);
+  virtual void onConnectionToMqServer(const TcpConnection::ptr & conne)override;
 
 
 
@@ -65,13 +67,15 @@ private:
   Mutex m_mutex;
   std::unique_ptr<Thread> m_thread;
   ProduceQueue m_send_queue;  ///跨线程的 需要保护
-  std::unordered_map<int,TopicAndMessage> m_resend_set;
+  std::map<int,TopicAndMessage> m_resend_set;
   SendCallback  m_send_cb;
   SendOkCallbck  m_send_ok_cb;
   const std::vector<Address::ptr>  m_dir_addrs;
   bool m_isInit;  ///初始化的时候置位
   Condition m_empty_queueAndsResend;
   int count = 0;
+  consistent_hash_map<> m_hashHost;
+  std::unordered_map<std::string,TcpConnection::ptr > m_vaild_conne;
 };
 
 class ProducerWrap{

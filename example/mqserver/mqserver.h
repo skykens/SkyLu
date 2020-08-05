@@ -17,11 +17,13 @@
 #include <skylu/base/nocopyable.h>
 #include <skylu/proto/mq_proto.h>
 #include <skylu/proto/dirserver_proto.h>
+#include "partition.h"
 
 
 
 using namespace skylu;
 class MqServer :Nocopyable{
+  const int kPersistentTimeMs = 5000;
   typedef std::unique_ptr<TcpClient> TcpClientPtr;
 public:
   MqServer(EventLoop * loop
@@ -36,7 +38,8 @@ public:
 private:
 
   void init();
-  void sendRegister(const TcpConnection::ptr & conne);
+  void persistentPartitionWithMs();
+  void sendRegisterWithMs(const TcpConnection::ptr & conne);
   void sendKeepAliveWithMs();
   void simpleSendReply(uint64_t messageId,char command,const TcpConnection::ptr & conne);
 
@@ -54,7 +57,7 @@ private:
    * 订阅相关
    * @param msg
    */
-  void handleSubscribe(const MqPacket * msg);
+  void handleSubscribe(const TcpConnection::ptr& conne,const MqPacket * msg);
   void handleCancelSubscribe(const MqPacket * msg);
 
   /**
@@ -68,7 +71,7 @@ private:
    * 处理消费者的pull请求
    * @param msg
    */
-  void handlePull(const MqPacket* msg);
+  void handlePull(const TcpConnection::ptr& conne,const MqPacket* msg);
 
   /**
    * 处理消费者的commit请求
@@ -85,9 +88,12 @@ private:
   TcpServer m_server;
   std::vector<TcpClientPtr> m_dirpeer_clients;
   Address::ptr m_local_addr;
+  std::unordered_map<TcpConnection::ptr,std::vector<std::string> > m_consumer; ///消费者订阅的组
+  std::unordered_map<std::string,std::unique_ptr<Partition>> m_partition; /// topic -  message
+  std::unordered_set<uint64_t> m_messageId_set;
+  std::unordered_map<int64_t ,std::unordered_map<std::string,uint64_t>> m_consumer_commit;
 
-  std::unordered_map<std::string,std::list<Buffer> > m_topicAndMsg; /// topic -  message
-  std::unordered_map<uint64_t,std::list<Buffer>::iterator> m_messageId_set;
+
 
 
 };

@@ -3,60 +3,72 @@
 //
 
 #include "partition.h"
-const char * Partition::kIndexFileName = ".commitIndex";
 Partition::Partition(const std::string &topic, int id)
-    :m_prefix(topic + std::to_string(id) + "/"),m_lastOffsetIndexInFile(0),m_sequence(0),m_commitSequence(-1)
-      ,m_topic(topic),m_id(id)
+    :m_prefix(topic + std::to_string(id) + "/"),m_lastLogMmap(nullptr),m_lastLogFileLength(0),m_lastOffsetIndexInFile(0),m_size(0)
+      ,m_topic(topic),m_id(id),m_isDirty(false)
 {
   if(!File::isExits(topic + std::to_string(id))){
     /// 文件夹不存在 创建,同时创建index 索引文件
     File::createDir(topic + std::to_string(id));
-    std::string s(m_prefix + kIndexFileName);
+
   }else{
     loadIndex();
     findLastSequenceMsg();
-    initCommitSequence();
   }
+
+  if(!m_lastLogFile){
+    ///着两个是一起的，一个没有另一个也一定没有
+    assert(!m_lastIndexFile);
+    mmapNewLog();
+  }
+
 
 }
 
 Partition::~Partition() {
+  syncTodisk();
+  unmmapLog();
 }
 void Partition::addToLog(Buffer *msg) {
 
-  if(m_lastLogFile&&m_lastLogFile->getFilesize() > ksingleFileMaxSize){
-    m_lastLogFile.reset();
-    m_lastIndexFile.reset();
+
+
+  assert(m_lastLogFile);
+  assert(m_lastIndexFile);
+  if(ksingleFileMaxSize - m_lastLogFileLength < msg->readableBytes() ){
+    /// 需要写入的消息过大
+    mmapNewLog();
   }
-  if(!m_lastIndexFile || !m_lastLogFile){
-    assert(!m_lastIndexFile);
-    assert(!m_lastLogFile);
 
-
-    std::map<long,long> m;
-    m_lastIndexFile = Fdmanager::FdMagr::GetInstance()->open(m_prefix +std::to_string(m_sequence)+ ".index",O_CREAT|O_RDWR|O_APPEND);
-    m_indexs.insert({m_sequence,m});
-    m_lastLogFile = Fdmanager::FdMagr::GetInstance()->open(m_prefix+std::to_string(m_sequence) + ".log",O_CREAT|O_RDWR|O_APPEND);
-
-  }
-  int position = m_lastLogFile->getFilesize();
-  ssize_t size =  m_lastLogFile->write(msg->curRead(),msg->readableBytes());
-  assert(size > 0);
-  int in_file_offset = m_sequence - m_indexs.rbegin()->first;
-  if (size > kMsgblockMaxSize ||
-        in_file_offset > m_lastOffsetIndexInFile +
-                             kIndexMinInteral /// 在文件中的offset > 最小的间隔
-        || in_file_offset == 0) {
-      /// 写入索引文件
-      m_lastIndexFile->writeNewLine(std::to_string(m_sequence) + "," +
-                                    std::to_string(position));
-      m_lastOffsetIndexInFile =
-          in_file_offset; /// 至少kIndexMinInteral间隔触发一次写索引
+  std::string writIndex=""; ///要写入index文件的index内容
+  uint64_t position = m_lastLogFileLength;
+  char  * src = const_cast<char *>(msg->curRead());
+  for(size_t i = position; i - position < msg->readableBytes();){
+    auto * m = reinterpret_cast<MqPacket* >(src);
+    int len = MqPacketLength(m);
+    m->command = MQ_COMMAND_PULL;
+    m->offset = m_size;  ///序号
+    src += len;
+    i +=len;
+    m_size ++;
+    uint64_t in_file_offset = m_size - m_indexs.rbegin()->first;
+    if(len > kMsgblockMaxSize || in_file_offset > m_lastOffsetIndexInFile + kIndexMinInteral
+        || in_file_offset == 0){
+      m_lastOffsetIndexInFile = in_file_offset;
       m_indexs.rbegin()->second.insert({in_file_offset, position});
+      writIndex += std::to_string(m_lastOffsetIndexInFile) + "," + std::to_string(i) + "\n";
+    }
   }
-  ++m_sequence;
+  memcpy(m_lastLogMmap + m_lastLogFileLength,msg->curRead(),msg->readableBytes());
+  m_lastLogFileLength += msg->readableBytes();
+  msg->resetAll();
 
+  if(!writIndex.empty()) {
+    m_index_buffer.append(writIndex);
 
+  }
+  assert(m_size >= m_lastOffsetIndexInFile);
+  m_isDirty = true;
 
 }
 void Partition::loadIndex() {
@@ -71,7 +83,8 @@ void Partition::loadIndex() {
   }
   std::sort(vec_index.begin(),vec_index.end(),[](const std::string s1,const std::string  & s2){
     int prefix = s1.find('/')+2;
-    return std::stol(s1.substr(prefix)) > std::stol(s2.substr(prefix));
+    int n1 = std::stol(s1.substr(prefix)),n2 = std::stol(s2.substr(prefix));
+    return n1 < n2;
   });
   m_lastIndexFile = Fdmanager::FdMagr::GetInstance()->open(vec_index.back(),O_RDWR|O_APPEND);
 
@@ -79,8 +92,9 @@ void Partition::loadIndex() {
   assert(!vec_log.empty());
 
   std::sort(vec_log.begin(),vec_log.end(),[](const std::string s1,const std::string  & s2){
-    int prefix = s1.find('/')+2;
-    return std::stol(s1.substr(prefix)) > std::stol(s2.substr(prefix));
+    int prefix = s1.find('/')+2; /// eg: hello0//0.index
+    int n1 = std::stol(s1.substr(prefix)),n2 = std::stol(s2.substr(prefix));
+    return n1 < n2;
   });
   m_lastLogFile = Fdmanager::FdMagr::GetInstance()->open(vec_log.back(),O_RDWR|O_APPEND);
 
@@ -95,46 +109,166 @@ void Partition::loadIndex() {
     }
     m_indexs[std::stol(it.substr(it.find('/')+2))] = content;
   }
-
+  m_lastOffsetIndexInFile = getBackIndexInLastFile(); /// 最后一个.index 的最后一行
+  m_lastLogMmap = static_cast<char *>(mmap(nullptr,ksingleFileMaxSize,PROT_READ|PROT_WRITE,MAP_SHARED,m_lastLogFile->getFd(),0));
 
 }
-void Partition::sendToConsumer(const MqPacket *info,
+
+uint64_t Partition::sendToConsumer(const MqPacket *info,
                                const TcpConnection::ptr &conne) {
 
+  assert(info->command  == MQ_COMMAND_PULL);
+  uint64_t offset = info->offset;
+  if(m_size <= info->offset){
+    ///拉取的offset 太超前了
+    return 0;
+  }
+  auto it = m_indexs.lower_bound(offset) ; /// 起点文件
+  if(it->first != offset){
+    --it;
+  }
+  std::string filename = m_prefix+std::to_string(it->first) + ".log";
+
+  int fd = -1;
+  char  * buff = nullptr ;
+  if(it->first != m_indexs.rbegin()->first){
+    ///定位到了最后一个文件
+    fd = m_lastLogFile->getFd();
+    buff = m_lastLogMmap;
+  }else{
+    fd = ::open(filename.c_str(),O_RDONLY);
+    buff = static_cast<char * > (mmap(nullptr,ksingleFileMaxSize,PROT_READ, MAP_PRIVATE, fd,0));
+    if(buff == (void *)-1){
+      SKYLU_LOG_FMT_ERROR(G_LOGGER,"mmap errno = %d,strerrno = %s",errno,strerror(errno));
+      return 0;
+    }
+  }
+  uint64_t indexInFile = offset - it->first; /// 需要查找的索引在文件中的索引量
+  uint64_t  index = -1;
+  long position; ///记录在索引文件中的值
+  auto line  = it->second.lower_bound(indexInFile); ///定位到的索引位置  offset-position
+  if(line->first != indexInFile){
+    if(line != it->second.begin())
+        --line;
+  }
+
+  if(line->first <= indexInFile){
+    index = line->first;
+    position = line->second;
+  }else{
+    ///从头开始找
+    index = 0;
+    position = 0;
+  }
+
+  char * content  = buff + position; /// 第offset个消息的起点
+
+    for (uint64_t i = index; i < indexInFile; ++i) {
+      auto *msg = reinterpret_cast<MqPacket *>(content);
+      int length = MqPacketLength(msg);
+      content += length;
+      position += length;
+      ///向下遍历找到需要发送的消息的消息
+    }
+  int eofPosition = position;
+
+  auto * tmp = content;
+  int count = 0 ; ///发送了多少个包
+  ///  判断当前位置到下一个索引的位置是不是可以直接发送
+  uint64_t  maxEnableBytes = info->maxEnableBytes >=0 ? info->maxEnableBytes : ksingleFileMaxSize;
+    for (uint32_t i = 0; i <= maxEnableBytes;) {
+
+      auto *msg = reinterpret_cast<MqPacket *>(tmp);
+      if(!checkMqPacketEnd(msg)){
+        ///空数据
+        break;
+      }
+      count++;
+      int length = MqPacketLength(msg);
+      tmp += length;
+      i += length;
+      if(i >= ksingleFileMaxSize-position){
+        ///超出了文件大小
+        break;
+      }
+      eofPosition =
+          i <= maxEnableBytes ? eofPosition + length : eofPosition;
+    }
+  /*
+  int socket = conne->getSocketFd();
+   sendfile(fd,socket,static_cast<off_t*>(&position),eofPosition - position);
+   */
+  {
+    // test
+    using namespace  std;
+    int len  = eofPosition - position;
+    assert(len >= 0);
+  //  content = buff;
+    for(auto * i = reinterpret_cast<MqPacket *>(content) ; len > 0 ; ){
+
+      int length = MqPacketLength(i);
+      string topic,message;
+      getTopicAndMessage(i,topic,message);
+      cout<<"["<<"offset "<<i->offset<<"]topic : "<<topic<<"   message : "<<message<<endl;
+      len -= length;
+      content += length;
+      i = reinterpret_cast<MqPacket *>(content);
+    }
+
+  }
+
+
+  munmap(buff,ksingleFileMaxSize);
+  close(fd);
+  return count;
+
+
 }
-void Partition::writeCommitToFile() const {
-  std::ofstream file(kIndexFileName,std::ios::trunc);
-  file<<m_commitSequence;
-}
-void Partition::initCommitSequence() {
-  std::ifstream  file(m_prefix + kIndexFileName);
-  file>>m_commitSequence;
-}
+
 void Partition::findLastSequenceMsg() {
-  size_t sz = m_lastLogFile->getFilesize();
-  if(sz == 0){
+  if(!m_lastLogFile){
     return ;
   }
   int fd = ::open(m_lastLogFile->getPath().c_str(),O_RDONLY);
-
-  void * buff = mmap(nullptr,sz,PROT_READ, MAP_SHARED, fd,0);
-   MqPacket * msg = static_cast<MqPacket * >(buff);
+  char  * buff = static_cast<char * > (mmap(nullptr,ksingleFileMaxSize,PROT_READ, MAP_SHARED, fd,0));
+  char * msg = static_cast<char * >(buff);
    int sequence = 0;
-
-  std::cout<<(char *)buff - reinterpret_cast<char *>(msg);
-  while((char *)buff - reinterpret_cast<char *>(msg) >= 0){
-    std::cout<<(char *)buff - reinterpret_cast<char *>(msg)<<std::endl;
-    msg += MqPacketLength(msg);
+  while( checkMqPacketEnd(reinterpret_cast<MqPacket*>(msg))
+          &&static_cast<uint64_t>(msg -buff)<ksingleFileMaxSize){
+    int length = MqPacketLength(reinterpret_cast<MqPacket *>(msg));
+    msg += length;
+    m_lastLogFileLength += length;
      sequence++;
    }
+  m_size = sequence + m_indexs.rbegin()->first;
 
-   /*
-  for(i = MqPacketLength(msg);i <= sz; i+=MqPacketLength(msg)){
-    msg += MqPacketLength(msg);
-
+}
+void Partition::syncTodisk() {
+  if(m_isDirty) {
+    msync(m_lastLogMmap,ksingleFileMaxSize,MS_SYNC); ///同步落地到磁盘
+    m_lastIndexFile->write(m_index_buffer.curRead(),
+                           m_index_buffer.readableBytes());
+    m_index_buffer.resetAll();
+    m_isDirty = false;
   }
-    */
 
-  m_sequence = sequence + m_indexs.rbegin()->first;
+}
+void Partition::mmapNewLog() {
 
+  if(m_lastLogMmap != (void *)-1 && m_lastLogMmap){
+    unmmapLog();
+  }
+  m_lastIndexFile = Fdmanager::FdMagr::GetInstance()->open(m_prefix +std::to_string(m_size)+ ".index",O_CREAT|O_RDWR|O_APPEND);
+  OffsetAndPosition  m;
+  m_indexs.insert({m_size,m});
+  m_lastLogFile = Fdmanager::FdMagr::GetInstance()->open(m_prefix+std::to_string(m_size) + ".log",O_CREAT|O_RDWR|O_APPEND);
+  ftruncate(m_lastLogFile->getFd(),ksingleFileMaxSize);
+  m_lastLogMmap = static_cast<char *>(mmap(nullptr,ksingleFileMaxSize,PROT_READ|PROT_WRITE,MAP_SHARED,m_lastLogFile->getFd(),0));
+  m_lastLogFileLength = 0;
+  m_lastOffsetIndexInFile = 0;
+  assert(m_lastLogMmap != (void *)-1);
+}
+
+void Partition::unmmapLog() {
+  munmap(m_lastLogMmap,ksingleFileMaxSize);
 }

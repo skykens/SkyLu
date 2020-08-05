@@ -11,8 +11,8 @@
 using namespace  skylu;
 int main(int argc,char **argv)
 {
-  /*
-  G_LOGGER->setLevel(LogLevel::INFO);
+ // G_LOGGER->setLevel(LogLevel::INFO);
+ /*
   if(argc < 3){
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"your argc = %d,usgae host port",argc);
     return -1;
@@ -25,14 +25,75 @@ int main(int argc,char **argv)
   MqServer server(&loop,addr,peer_addrs,"MqServer ");
   server.run();
 
-   */
+  */
 
   std::string str = "hello";
-  Buffer msg;
-  Partition test(str,0);
-  createCommandMqPacket(&msg,MQ_COMMAND_DELIVERY,createMessageId());
-  //test.addToLog(&msg);
-  std::cout<<test.getTopic();
+  int i = 0;
+  {
+    Partition test(str, 0);
+    Buffer buff;
+    for (; i < 50; ++i) {
+      std::string message = "world id =" + std::to_string(i);
+      MqPacket msg{};
+      msg.command = MQ_COMMAND_DELIVERY;
+      msg.messageId = createMessageId();
+      msg.msgBytes = message.size();
+      msg.topicBytes = str.size();
+      serializationToBuffer(&msg, str, message, buff);
+    }
+    test.addToLog(&buff);
+  }
+
+  {
+    Partition test(str, 0);
+    Buffer buff;
+    for (; i < 100; ++i) {
+      std::string message = "world id =" + std::to_string(i);
+      MqPacket msg{};
+      msg.command = MQ_COMMAND_DELIVERY;
+      msg.messageId = createMessageId();
+      msg.msgBytes = message.size();
+      msg.topicBytes = str.size();
+      serializationToBuffer(&msg, str, message, buff);
+    }
+    test.addToLog(&buff);
+  }
+  {
+    Partition test(str, 0);
+    Buffer buff;
+    for (; i < 150; ++i) {
+      std::string message = "world id =" + std::to_string(i);
+      MqPacket msg{};
+      msg.command = MQ_COMMAND_DELIVERY;
+      msg.messageId = createMessageId();
+      msg.msgBytes = message.size();
+      msg.topicBytes = str.size();
+      serializationToBuffer(&msg, str, message, buff);
+    }
+    test.addToLog(&buff);
+  }
+  {
+    Partition test(str, 0);
+    Buffer buff;
+    for (; i < 200; ++i) {
+      std::string message = "world id =" + std::to_string(i);
+      MqPacket msg{};
+      msg.command = MQ_COMMAND_DELIVERY;
+      msg.messageId = createMessageId();
+      msg.msgBytes = message.size();
+      msg.topicBytes = str.size();
+      serializationToBuffer(&msg, str, message, buff);
+    }
+    test.addToLog(&buff);
+  }
+  Partition test(str, 0);
+  MqPacket info{};
+  info.command = MQ_COMMAND_PULL;
+  info.offset = test.getSize() - 10;
+  info.maxEnableBytes =  -1;
+  test.sendToConsumer(&info, nullptr);
+
+  std::cout<<"test's size = "<<test.getSize();
 
 
   return 0;

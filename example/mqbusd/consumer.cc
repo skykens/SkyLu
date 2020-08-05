@@ -11,7 +11,7 @@ Consumer::Consumer(EventLoop * loop,const std::vector<Address::ptr> &dir_addrs,
 }
 void Consumer::onMessageFromMqServer(const TcpConnection::ptr &conne,
                                      Buffer *buff) {
-
+  bool hasPull = false;
   while(buff->readableBytes()>sizeof(MqPacket)) {
     const MqPacket *msg = serializationToMqPacket(buff);
     switch (msg->command) {
@@ -26,17 +26,18 @@ void Consumer::onMessageFromMqServer(const TcpConnection::ptr &conne,
       break;
     case MQ_COMMAND_PULL:
       handlePull(msg,conne);
+      hasPull = true;
       break;
-
     default:
       SKYLU_LOG_FMT_ERROR(G_LOGGER, "invaild command[%d] form conne[%s] ",
                           msg->command, conne->getName().c_str());
       break;
     }
   }
-  if(!m_recv_messages.empty()){
-    m_loop->quit();
+  if(hasPull && m_pull_cb){
+    m_pull_cb(m_recv_messages);
   }
+
 }
 
 void Consumer::subscribe(const std::string &topic) {
@@ -66,7 +67,6 @@ void Consumer::subscribe(const TcpConnection::ptr& conne) {
   }
   serializationToBuffer(vec,m_topic,buff);
   conne->send(&buff);
-
 
 }
 bool Consumer::cancelSubscribe(const std::string &topic) {
@@ -185,12 +185,17 @@ void Consumer::handleSubscribe(const MqPacket *msg,const TcpConnection::ptr &con
     getTopic(msg,topic);
     if(msg->command == MQ_COMMAND_SUBSCRIBE){
       SKYLU_LOG_FMT_INFO(G_LOGGER,"success subscribe topic %s",topic.c_str());
-      m_subscribe_cb(topic);
+      if(m_subscribe_cb){
+        m_subscribe_cb(topic);
+      }
       m_vaild_topic_conne.insert({topic,conne});
+      m_loop->runInLoop(std::bind(&Consumer::pull,this,10));
     }else{
       /// 服务端对取消订阅的响应
       SKYLU_LOG_FMT_INFO(G_LOGGER,"success cancel subscribe topic %s",topic.c_str());
-      m_cancel_subscribe_cb(topic);
+      if(m_cancel_subscribe_cb){
+        m_cancel_subscribe_cb(topic);
+      }
       m_vaild_topic_conne.erase(topic);
       m_topic.erase(topic);
     }
@@ -219,6 +224,7 @@ void Consumer::handlePull(const MqPacket *msg,const TcpConnection::ptr &conne) {
                           msg->messageId,topic.c_str(),message.c_str());
 
     }
+
   }else{
     SKYLU_LOG_FMT_ERROR(G_LOGGER,"invaild reCode =%d",msg->retCode);
   }
@@ -230,4 +236,34 @@ void Consumer::handleCommit(const MqPacket *msg,const TcpConnection::ptr &conne)
 
   assert(m_recv_messageId.find(msg->messageId) != m_recv_messageId.end());
   m_recv_messageId.erase(msg->messageId);  ///直到这个时候才要删除message 之前都还在处理。
+}
+void Consumer::connectToMqServer() {
+
+  static int i = 0;
+  for(auto topic : m_topic) {
+
+    for (auto it : m_mqserver_info) {
+      /// 添加最新的Client FIXME  这里会有性能的问题
+      if (it.second.find(topic) != it.second.end()  ///找到有相关主题的broker 进行连接
+          &&m_mqserver_clients.find(it.first) == m_mqserver_clients.end()) {
+        int flag = it.first.find(':');
+        std::string host(it.first.substr(0, flag++));
+        int port = atoi(it.first.substr(flag, it.first.size() - flag).c_str());
+        Address::ptr addr = IPv4Address::Create(host.c_str(), port);
+        m_mqserver_clients[it.first].reset(new TcpClient(
+            m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
+
+        SKYLU_LOG_FMT_INFO(G_LOGGER,
+                           "initMqServerClients| client host : %s port : %d",
+                           host.c_str(), port);
+
+        m_mqserver_clients[it.first]->connect();
+        m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
+            &Consumer::onConnectionToMqServer, this, std::placeholders::_1));
+        m_mqserver_clients[it.first]->setMessageCallback(
+            std::bind(&Consumer::onMessageFromMqServer, this,
+                      std::placeholders::_1, std::placeholders::_2));
+      }
+    }
+  }
 }

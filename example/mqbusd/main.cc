@@ -1,12 +1,13 @@
 //
 // Created by jimlu on 2020/7/24.
 //
-#include <memory>
-#include <skylu/base/log.h>
-#include <skylu/net/eventloop.h>
-#include <skylu/net/address.h>
-#include "producer.h"
 #include "consumer.h"
+#include "producer.h"
+#include <memory>
+#include <skylu/base/consistenthash.hpp>
+#include <skylu/base/log.h>
+#include <skylu/net/address.h>
+#include <skylu/net/eventloop.h>
 using namespace  skylu;
 int main(int argc,char **argv)
 {
@@ -61,10 +62,11 @@ int main(int argc,char **argv)
       vec[i]->start();
     }
 
-    for (int i = 810; i; --i) {
-      for (const auto &it : vec) {
 
-        it->put("hello", it->getName());
+    for (int i = 0; i < 10; ++i) {
+
+      for (const auto &it : vec) {
+        it->put("hello", it->getName() +"  msgId = "+ std::to_string(i));
       }
     }
 
@@ -87,17 +89,17 @@ int main(int argc,char **argv)
   EventLoop loop;
   Consumer consumer(&loop,peer_addrs,"consumer");
   consumer.subscribe("hello");
-  while(true){
-    consumer.poll(100);
-    auto   res  = consumer.getMessage();
-    consumer.commit();
-  }
+  consumer.setPullCallback([](const Consumer::TopicMap & msg){
+    for(const auto & it : msg){
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"recv topic : %s",it.first.c_str());
+      for(const auto & i: it.second){
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"//////// msg = %s",i.second.c_str());
+      }
+    }
 
 
-
-
-
-
+          });
+  consumer.poll(100);
 
   return 0;
 }

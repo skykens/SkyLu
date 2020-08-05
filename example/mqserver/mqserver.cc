@@ -19,13 +19,17 @@ MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
                                              ,peerdirs_addr[i]
                                              ,"#DirPeerClientID #" + std::to_string(i)));
     m_dirpeer_clients[i]->enableRetry();
-    m_dirpeer_clients[i]->setConnectionCallback(std::bind(&MqServer::sendRegister,this,std::placeholders::_1));
+    m_dirpeer_clients[i]->setConnectionCallback(std::bind(&MqServer::sendRegisterWithMs,this,std::placeholders::_1));
     m_dirpeer_clients[i]->setMessageCallback(std::bind(&MqServer::onMessageFromDirPeer
                                                        ,this,std::placeholders::_1,std::placeholders::_2));
 
 
   }
 
+  m_loop->runEvery(kPersistentTimeMs *Timestamp::kSecondToMilliSeconds,
+                   std::bind(&MqServer::persistentPartitionWithMs,this));
+  m_loop->runEvery(kSendKeepAliveMs * Timestamp::kSecondToMilliSeconds,
+                   std::bind(&MqServer::sendKeepAliveWithMs, this));
   m_server.setMessageCallback(std::bind(&MqServer::onMessageFromMqBusd
                                       ,this,std::placeholders::_1,std::placeholders::_2));
 }
@@ -46,26 +50,36 @@ void MqServer::run() {
   m_server.start();
   m_loop->loop();
 }
-void MqServer::sendRegister(const TcpConnection::ptr &conne) {
-  char buff[64] ={0};
-  DirServerPacket* msg = reinterpret_cast<DirServerPacket *>(buff);
-  msg->Msgbytes = m_local_addr->toString().size();
-  msg->command = DirProto::COMMAND_REGISTER;
-  memcpy(&msg->hostAndPort,m_local_addr->toString().c_str(),msg->Msgbytes);
-  conne->send(buff,sizeof(DirServerPacket) + msg->Msgbytes);
+void MqServer::sendRegisterWithMs(const TcpConnection::ptr &conne) {
+  Buffer buff;
+  char tmp[sizeof(DirServerPacket)];
+  size_t length = 0;
+  std::string host = m_local_addr->toString();
+  buff.append(tmp,sizeof(DirServerPacket));
+  buff.append(m_local_addr->toString() + "\r\n");
+  length += host.size() + 2;
+  for(const auto &  it : m_partition){
+    std::string str = it.first + ":" + std::to_string(it.second->getSize()) + "\r\n";
+    buff.append(str);
+    length += str.size() ;
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"append to register buffer  str = %s ",str.c_str());
+  }
+  const auto* msg_const = reinterpret_cast<const DirServerPacket *>(buff.curRead());
+  auto * msg = const_cast<DirServerPacket * >(msg_const);
+  msg->command = COMMAND_REGISTER;
+  msg->Msgbytes = length;
+  conne->send(&buff);
+
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send RegisterRequest to conne[%s]",conne->getName().c_str());
 
 }
 void MqServer::sendKeepAliveWithMs() {
-  DirServerPacket msg{};
-  msg.Msgbytes = 0;
-  msg.command = DirProto::COMMAND_KEEPALIVE;
   for(const auto& it : m_dirpeer_clients){
     const auto & conne = it->getConnection();
     if(conne){
 
-      conne->send(reinterpret_cast<char * >(&msg),sizeof(DirServerPacket));
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send Ack to conne[%s]",it->getName().c_str());
+      sendRegisterWithMs(conne);
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send register to conne[%s]",it->getName().c_str());
 
     }
   }
@@ -83,10 +97,10 @@ void MqServer::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff
      /// 开始发送心跳保活
      static bool  isVaild = false;
      if(!isVaild) {
-     SKYLU_LOG_FMT_DEBUG(G_LOGGER, "send heartBeat to peers[num = %d] ",
-                         m_dirpeer_clients.size());
+     SKYLU_LOG_FMT_DEBUG(G_LOGGER, "send registerWithMs[%s] to peers[num = %d] ",
+                         kSendKeepAliveToMqMs,m_dirpeer_clients.size());
      m_loop->runEvery(kSendKeepAliveMs * Timestamp::kSecondToMilliSeconds,
-                      std::bind(&MqServer::sendKeepAliveWithMs, this));
+                      std::bind(&MqServer::sendRegisterWithMs, this,conne));
      isVaild = true;
    }
 
@@ -100,7 +114,7 @@ void MqServer::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff
 }
 void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
                                    Buffer *buff) {
-  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"msg{%s} from conne[%s]",buff->curRead(),conne->getName().c_str());
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"msg from conne[%s]",conne->getName().c_str());
   if(buff->readableBytes() < sizeof(MqPacket)){
     conne->shutdown();
     SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] send error packet size[%d]",conne->getName().c_str(),buff->readableBytes());
@@ -114,6 +128,7 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
       SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] send too larget packet size[%d]",conne->getName().c_str(),buff->getWPos());
       return ;
     }
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = %d",conne->getName().c_str(),msg->command);
     switch (msg->command) {
     case MQ_COMMAND_DELIVERY:
       /// 投递
@@ -126,11 +141,16 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
       break;
     case MQ_COMMAND_PULL:
       /// 拉取消息
-      handlePull(msg);
+      handlePull(conne,msg);
       break;
     case MQ_COMMAND_SUBSCRIBE:
       /// 订阅
+      handleSubscribe(conne,msg);
+      simpleSendReply(msg->messageId,MQ_COMMAND_SUBSCRIBE,conne);
+      break;
+    case MQ_COMMAND_CANCEL_SUBSCRIBE:
       handleCancelSubscribe(msg);
+      simpleSendReply(msg->messageId,MQ_COMMAND_CANCEL_SUBSCRIBE,conne);
       break;
     case MQ_COMMAND_COMMIT:
       handleCommit(msg);
@@ -159,26 +179,46 @@ void MqServer::handleDeliver(const MqPacket *msg) {
     std::string topic, message;
     getTopicAndMessage(msg,topic,message);
     Buffer tmp;
+    MqPacket * commd = const_cast<MqPacket *>(msg);
+    commd->command = MQ_COMMAND_PULL;
     serializationToBuffer(msg,topic,message,tmp);
-    m_topicAndMsg[topic].push_front(tmp);
-    m_messageId_set.insert({msg->messageId,m_topicAndMsg[topic].begin()});
+    if(m_partition.find(topic) == m_partition.end()){
+      m_partition[topic].reset(new Partition(topic,0));
+    }
+    m_partition[topic]->addToLog(&tmp);
     SKYLU_LOG_FMT_INFO(G_LOGGER,"recv msg[%ld] topic[%s] message[%s]",msg->messageId,topic.c_str(),message.c_str());
-    /// 这里可以落地一下
 
   }
   /// 如果messageId已经存在在set中就不做处理。
 }
-void MqServer::handleSubscribe(const MqPacket *msg) {
+void MqServer::handleSubscribe(const TcpConnection::ptr& conne,const MqPacket *msg) {
 
   std::string topic;
   getTopic(msg,topic);
-
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv subscribe topic[%s]",conne->getName().c_str(),topic.c_str());
+  m_consumer[conne].push_back(topic);
 
 }
 void MqServer::handleHeartBeat(const MqPacket *msg) {
 
 }
-void MqServer::handlePull(const MqPacket *msg) {
+void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
+  Buffer buff;
+
+  for(const auto  & topic : m_consumer[conne]) {
+    if (msg->offset < 0) {
+      MqPacket info = *msg;
+      assert(MqPacketLength(&info) == MqPacketLength(msg));
+      info.offset = m_consumer_commit[info.consumerGroupId][topic];
+      m_partition[topic]->sendToConsumer(&info,conne);
+
+    } else {
+
+      m_partition[topic]->sendToConsumer(msg, conne);
+    }
+  }
+
+
 
 }
 void MqServer::handleCancelSubscribe(const MqPacket *msg) {
@@ -187,4 +227,10 @@ void MqServer::handleCancelSubscribe(const MqPacket *msg) {
 void MqServer::handleCommit(const MqPacket *msg) {
 
 }
+void MqServer::persistentPartitionWithMs() {
+  for(auto &it  : m_partition){
+    it.second->syncTodisk();
 
+  }
+
+}

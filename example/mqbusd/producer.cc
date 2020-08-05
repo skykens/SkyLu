@@ -16,23 +16,15 @@ Producer::Producer(const std::vector<Address::ptr> & dir_addrs,const std::string
 void Producer::sendInLoop(bool isRetry) {
 
   m_loop->assertInLoopThread();
-  static int i = 0;
   Buffer buff;
-  std::vector<TcpConnection::ptr> vec;
-  for(const auto& it : m_mqserver_clients){
-    auto conne = it.second->getConnection();
-    if(conne){
-      vec.push_back(conne);
 
-    }
-  }
   ProduceQueue queue;
   {
     Mutex::Lock  lock(m_mutex);
     queue = m_send_queue;
     m_send_queue.clear();
   }
-  if(vec.empty()){
+  if(m_hashHost.empty()){
     m_isVaild = false;
     SKYLU_LOG_FMT_ERROR(G_LOGGER,"all server(%d) is sick.",m_mqserver_clients.size());
     if(m_send_cb)
@@ -40,42 +32,44 @@ void Producer::sendInLoop(bool isRetry) {
     if(!isRetry)
       return ; ///如果可以重试的话就将msg放到重发队列中
   }
-  TcpConnection::ptr conne = nullptr;
-  if(!vec.empty()){
-    conne = vec[i++%vec.size()];
-    SKYLU_LOG_FMT_INFO(G_LOGGER,"send to conne[%s] queue[%d]",conne->getName().c_str(),queue.size());
-
-  }
-  for(;!queue.empty();){
-
-    const auto & data = queue.front();
-    MqPacket msg{};
-    msg.command = MQ_COMMAND_DELIVERY;
-    msg.messageId = data.first;
-    msg.msgCreateTime = Timestamp::now().getMicroSeconds();
-    msg.topicBytes = data.second.first.size();
-    msg.msgBytes = data.second.second.size();
-    serializationToBuffer(&msg,data.second.first,data.second.second,buff);
-    if(m_resend_set.find(msg.messageId) == m_resend_set.end()){
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"queue in resendSet  topic-msg[%s|%s]."
-      ,data.second.first.c_str(),data.second.second.c_str());
-      m_resend_set.insert({msg.messageId,{data.second}});
+  MurMurHash hash;
+  while(!queue.empty()) {
+    /// 每个主题都会发送不同的broker 上，但是同个主题的内容都会通过一致性哈希放在同一个broker上
+    const auto &front = queue.front();
+    auto it = m_hashHost.find(hash(front.second.first));
+    TcpConnection::ptr conne = nullptr;
+    if(it!=m_hashHost.end()){
+      assert(m_vaild_conne.size());
+      conne = m_vaild_conne[it->second.realIp];
     }
-    queue.pop_front();
+
+    for (; !queue.empty();) {
+      ///取出队列的数据将其全部序列化到buff中,同时放到重发队列里
+      const auto &data = queue.front();
+      if(data.second.first != front.second.first){
+        break; ///不同的主题，当前的主题退出循环后开始发送
+      }
+      MqPacket msg{};
+      msg.command = MQ_COMMAND_DELIVERY;
+      msg.messageId = data.first;
+      msg.msgCreateTime = Timestamp::now().getMicroSeconds();
+      msg.topicBytes = data.second.first.size();
+      msg.msgBytes = data.second.second.size();
+      serializationToBuffer(&msg, data.second.first, data.second.second, buff);
+      if (m_resend_set.find(msg.messageId) == m_resend_set.end()) {
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER, "queue in resendSet  topic-msg[%s|%s].",
+                            data.second.first.c_str(),
+                            data.second.second.c_str());
+        m_resend_set.insert({msg.messageId, {data.second}});
+      }
+      queue.pop_front();
+    }
+    if(conne){
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] to conne[%s]",front.second.first.c_str(),conne->getName().c_str());
+      conne->send(&buff);
+    }
   }
 
-
-  Buffer buffbak = buff;
-  while(buffbak.readableBytes()>sizeof(MqPacket)) {
-    const MqPacket *msg = serializationToMqPacket(&buffbak); ///这里面会更新
-    assert(msg);
-  }
-
-
-  if(conne){
-    conne->send(&buff);
-    ++count;
-  }
 
 
 }
@@ -179,4 +173,14 @@ void Producer::handleDelivery(const MqPacket * msg) {
   if (m_resend_set.empty() && m_send_queue.empty()) {
     m_empty_queueAndsResend.notify();
   }
+}
+void Producer::onConnectionToMqServer(const TcpConnection::ptr &conne) {
+  MqBusd::onConnectionToMqServer(conne);
+  ////先默认50个虚拟节点
+  for(int i =0 ;i<kVirtualNodeNum;++i){
+    vnode_t note(conne->getName(),i);
+    m_hashHost.insert(note);
+  }
+  m_vaild_conne.insert({conne->getName(),conne});
+  SKYLU_LOG_DEBUG(G_LOGGER)<<"add real node successful";
 }

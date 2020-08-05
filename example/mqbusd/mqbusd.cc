@@ -39,17 +39,19 @@ MqBusd::~MqBusd() = default;
 void MqBusd::onMessageFromDirServer(const TcpConnection::ptr &conne,
                                     Buffer *buff) {
   if(buff->readableBytes() != sizeof(DirServerPacket)){
-    ///过滤掉空的情况 如果两次都为空的话addr也会为空 那么在后面的update里就会删除了对应的内容
-    parseRegisteConf(buff,m_addrs);
+    serializationFromBuffer(buff,m_mqserver_info_tmp);
 
   }else{
     buff->updatePos(sizeof(DirServerPacket));
   }
-  if(++count*2  >=  m_dir_clients.size()){
+  if(++m_recv_dir_count*2  >=  m_dir_clients.size()){
     /// 做一个并集 大部分的主备都已经返回信息了就可以更新
-    updateMqServerClients(m_addrs);
-    m_addrs.clear();
-    count = 0;
+    if(m_mqserver_info != m_mqserver_info_tmp) {
+      updateMqServerClients();
+    }
+    m_mqserver_info_tmp.clear();
+    m_recv_dir_count = 0;
+
   }
 
 
@@ -66,48 +68,28 @@ void MqBusd::onConnectionToMqServer(const TcpConnection::ptr &conne) {
 
 }
 
-void MqBusd::updateMqServerClients(HostAndPortSet &addrs) {
+void MqBusd::updateMqServerClients() {
 
-  if(addrs.empty()){
+  if(m_mqserver_info_tmp.empty()){
     /// 为空的时候说明服务端全部无效
     SKYLU_LOG_ERROR(G_LOGGER)<<"dirServer send empty addrs. m_mqserver_clients clear.";
-    if(!m_mqserver_clients.empty())
+    if(!m_mqserver_clients.empty()){
       m_mqserver_clients.clear();
-
+    }
+    m_mqserver_info.clear();
     assert(m_mqserver_clients.empty());
   }else {
+    m_mqserver_info = m_mqserver_info_tmp;
     for (auto it = m_mqserver_clients.begin();
          it != m_mqserver_clients.end();) {
       ///删除失效的TCPClient
-      if (addrs.find(it->first) == addrs.end()) {
+      if (m_mqserver_info_tmp.find(it->first) == m_mqserver_info_tmp.end()) {
         m_mqserver_clients.erase(it++); /// 这里删除client 随之connection也会被删除
       } else {
         ++it;
       }
     }
-    static int i = 0; ///轮询 负载均衡
-    for (auto it : addrs) {
-      /// 添加最新的Client FIXME  这里会有性能的问题
-      if (m_mqserver_clients.find(it) == m_mqserver_clients.end()) {
-        int flag = it.find(':');
-        std::string host(it.substr(0, flag++));
-        int port = atoi(it.substr(flag, it.size() - flag).c_str());
-        Address::ptr addr = IPv4Address::Create(host.c_str(), port);
-        m_mqserver_clients[it].reset(new TcpClient(
-            m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
-
-        SKYLU_LOG_FMT_INFO(G_LOGGER,
-                            "initMqServerClients| client host : %s port : %d",
-                            host.c_str(), port);
-
-        m_mqserver_clients[it]->connect();
-        m_mqserver_clients[it]->setConnectionCallback(std::bind(
-            &MqBusd::onConnectionToMqServer, this, std::placeholders::_1));
-        m_mqserver_clients[it]->setMessageCallback(
-            std::bind(&MqBusd::onMessageFromMqServer, this,
-                      std::placeholders::_1, std::placeholders::_2));
-      }
-    }
+   connectToMqServer();
   }
   if(m_updateMqServerConfTimer.getSequence() < 0){
    m_updateMqServerConfTimer =  m_loop->runEvery(kSendRequesetToDirSecond,std::bind(&MqBusd::updateMqSeverConfWithMs,this));
@@ -150,5 +132,31 @@ void MqBusd::init(const std::vector<Address::ptr> &dir_addrs) {
     m_dir_clients[i]->setConnectionCallback(std::bind(&MqBusd::onNewDirServerConnection,this,std::placeholders::_1));
     m_dir_clients[i]->setMessageCallback(std::bind(&MqBusd::onMessageFromDirServer
         ,this,std::placeholders::_1,std::placeholders::_2));
+  }
+}
+void MqBusd::connectToMqServer() {
+
+  static int i = 0;
+  for (auto it : m_mqserver_info) {
+    /// 添加最新的Client FIXME  这里会有性能的问题
+    if (m_mqserver_clients.find(it.first) == m_mqserver_clients.end()) {
+      int flag = it.first.find(':');
+      std::string host(it.first.substr(0, flag++));
+      int port = atoi(it.first.substr(flag, it.first.size() - flag).c_str());
+      Address::ptr addr = IPv4Address::Create(host.c_str(), port);
+      m_mqserver_clients[it.first].reset(new TcpClient(
+          m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
+
+      SKYLU_LOG_FMT_INFO(G_LOGGER,
+                         "initMqServerClients| client host : %s port : %d",
+                         host.c_str(), port);
+
+      m_mqserver_clients[it.first]->connect();
+      m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
+          &MqBusd::onConnectionToMqServer, this, std::placeholders::_1));
+      m_mqserver_clients[it.first]->setMessageCallback(
+          std::bind(&MqBusd::onMessageFromMqServer, this,
+                    std::placeholders::_1, std::placeholders::_2));
+    }
   }
 }

@@ -10,9 +10,6 @@ DirServer::DirServer(EventLoop *owner
                      ,int heartBeatMs)
       :m_owner(owner)
       ,m_server(owner,addr,name)
-      ,m_register_conf(nullptr)
-      ,kRegisterFileName(name + ".conf")
-      ,kRegisterBackup(name + ".conf.bak")
       ,m_ClientHeartBeatMs(heartBeatMs){
 
   init();
@@ -34,39 +31,35 @@ void DirServer::init() {
   });
 
   m_server.setCloseCallback([this](const  TcpConnection::ptr & conne){
+    ///如果这里不做的话会延长clients连接的生命期
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"close connection %s",conne->getName().c_str());
-    m_conf.erase(conne->getName());
+    assert(m_link_info_to_clients.find(conne->getSocketFd()) != m_link_info_to_clients.end());
+    m_clients_info.erase(m_link_info_to_clients[conne->getSocketFd()]);
+    m_link_info_to_clients.erase(conne->getSocketFd());
     m_clients.erase(conne->getSocketFd());
     m_clients_heartBeat.erase(conne->getSocketFd());
 
   });
-
-  if(File::isExits(kRegisterFileName)){
-    File::remove(kRegisterFileName);
-  }
-
-  int fd = ::open(kRegisterFileName.c_str(),O_RDWR|O_CREAT|O_CLOEXEC);
-  m_register_conf.reset(new File(fd));
 
 
 }
 void DirServer::onMessage(const TcpConnection::ptr &conne, Buffer *buff) {
 
   auto msg = reinterpret_cast<const DirServerPacket *>(buff->curRead());
-  buff->updatePos(sizeof(DirServerPacket) + msg->Msgbytes);
   switch (msg->command) {
   case COMMAND_KEEPALIVE:
     assert(msg->Msgbytes == 0);
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"command_keepalive from %s  host:%s"
     ,conne->getName().c_str()
     ,conne->getSocket()->getRemoteAddress()->toString().c_str());
-    handleKeepAlive(conne);
+    handleKeepAlive(conne,buff);
+    buff->updatePos(sizeof(DirServerPacket) + msg->Msgbytes);
     break;
   case COMMAND_REGISTER:
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"command_register from %s  host:%s"
     ,conne->getName().c_str()
     ,conne->getSocket()->getRemoteAddress()->toString().c_str());
-    handleRegister(conne,msg);
+    handleRegister(conne,buff);
     break;
   case COMMAND_REQUEST:
     assert(msg->Msgbytes == 0);
@@ -74,6 +67,7 @@ void DirServer::onMessage(const TcpConnection::ptr &conne, Buffer *buff) {
     ,conne->getName().c_str()
     ,conne->getSocket()->getRemoteAddress()->toString().c_str());
     handleRequest(conne);
+    buff->updatePos(sizeof(DirServerPacket) + msg->Msgbytes);
     break;
   default:
     SKYLU_LOG_FMT_ERROR(G_LOGGER,"invaild command %d",msg->command);
@@ -85,7 +79,7 @@ void DirServer::onMessage(const TcpConnection::ptr &conne, Buffer *buff) {
 void DirServer::listenClientWithMs() {
   Timestamp now = Timestamp::now();
   assert(m_clients.size() == m_clients_heartBeat.size());
-  assert(m_conf.size() == m_clients_heartBeat.size());
+ // assert(m_clients_info.size() == m_clients_heartBeat.size());
   for(auto it = m_clients_heartBeat.begin(); it != m_clients_heartBeat.end();){
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"now timestamp :% d, interval : %d"
                         ,now.getMicroSeconds(), now - it->second.getMicroSeconds());
@@ -95,44 +89,50 @@ void DirServer::listenClientWithMs() {
                           ,it->first,m_clients[it->first]->getName().c_str());
       auto & conne = m_clients[it->first];
       m_clients.erase(it->first);
-      m_conf.erase(conne->getName());
+      m_clients_info.erase(m_link_info_to_clients[conne->getSocketFd()]);
+      m_link_info_to_clients.erase(conne->getSocketFd());
       m_clients_heartBeat.erase(it++);
 
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"now clients_info's num = %d, clients' num = %d"
+      ,m_clients_info.size(),m_clients.size());
 
     }else{
       ++it;
     }
   }
-  updateRegisterFile();
 
 
 
 }
-void DirServer::handleRegister(const TcpConnection::ptr &conne,const DirServerPacket * msg) {
+void DirServer::handleRegister(const TcpConnection::ptr &conne,Buffer * buff) {
 
   int fd = conne->getSocketFd();
-  assert(m_clients.find(fd) == m_clients.end());
-  std::string addr(&msg->hostAndPort,msg->Msgbytes);
-  m_clients.insert({fd,conne});
-  m_conf.insert({conne->getName(),addr});
-  m_clients_heartBeat.insert({fd,Timestamp::now()});
-  updateRegisterFile();
-  sendAck(conne);
-
+  m_clients[fd] = conne;
+  m_clients_heartBeat[fd] = Timestamp::now();
+  HostAndTopics  info;
+  serializationFromBuffer(buff,info);
+  m_clients_info[info.first] = info.second;
+  m_link_info_to_clients[conne->getSocketFd()] = info.first;
+  SKYLU_LOG_FMT_INFO(G_LOGGER,"recv register host[%s] topic.size = %d"
+                               ",clients_info num=%d, clients' num = %d"
+                     ,info.first.c_str(),info.second.size(),m_clients_info.size(),m_clients.size());
 }
 void DirServer::handleRequest(const TcpConnection::ptr &conne) {
 
-  if(!File::getFilesize(kRegisterFileName)){
-    ///注册文件为空的时候仍然还是要发ACK
+  if(m_clients_info.empty()){
     sendAck(conne);
 
   }else {
-    if(!m_clients_heartBeat.empty())
-      conne->sendFile(kRegisterFileName.c_str());
+    if(!m_clients_heartBeat.empty()){
+      Buffer buff;
+      serializationToBuffer(&buff,m_clients_info);
+      conne->send(&buff);
+    }
+
   }
 
 }
-void DirServer::handleKeepAlive(const TcpConnection::ptr &conne) {
+void DirServer::handleKeepAlive(const TcpConnection::ptr &conne,Buffer * buff) {
   Address::ptr addr = conne->getSocket()->getLocalAddress();
   int fd = conne->getSocketFd();
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"recv heartbeat from conne[%d|%s]"
@@ -146,7 +146,7 @@ void DirServer::handleKeepAlive(const TcpConnection::ptr &conne) {
     // 更新心跳
     m_clients_heartBeat[fd] = Timestamp::now();
 
-
+  //  serializationFromBuffer(buff,m_clients_info);
 
 
 }
@@ -155,23 +155,5 @@ void DirServer::sendAck(const TcpConnection::ptr &conne) {
   msg.command = COMMAND_ACK;
   conne->send(&msg,sizeof(DirServerPacket));
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send ack to conne:%s",conne->getName().c_str());
-
-}
-void DirServer::updateRegisterFile() {
-  if(File::isExits(kRegisterBackup)){
-    File::remove(kRegisterBackup);
-  }
-  File::ptr file = Fdmanager::FdMagr::GetInstance()->open(kRegisterBackup,O_CREAT|O_RDWR);
-  for(const auto& it : m_conf){
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"register new host : %s from conne[%s]",
-                        it.second.c_str(),it.first.c_str());
-    file->writeNewLine(it.second.c_str());
-  }
-
-  File::rename(kRegisterBackup,kRegisterFileName);
-
-
-  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"updateRegisterFile successful! now clients' num = %d",
-                      m_clients.size());
 
 }

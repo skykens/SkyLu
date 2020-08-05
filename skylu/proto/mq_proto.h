@@ -40,9 +40,9 @@ public:
   uint64_t  sendTimerWithMs = 0; // 定时发送  0: 马上发送
   int32_t  consumerGroupId = -1;  /// -1: 不进入任何组
   uint32_t  pullInteval = 0; // 拉取间隔
-  uint32_t  maxEnableBytes = 0; // consumer允许最多的消息
-  uint32_t  minEnableBytes = 0; /// consumer最少需要多少消息
-  uint32_t offset = 0; // 唯一确定每条消息在分区里面的位置
+  int64_t  maxEnableBytes = 0; // consumer允许最多的消息
+  int64_t  minEnableBytes = 0; /// consumer最少需要多少消息
+  uint64_t offset = 0; // 唯一确定每条消息在分区里面的位置
   uint32_t topicBytes = 0;  //主题长度
   uint32_t msgBytes =0; //消息长度
   char body{};  //消息用/r/n多个消息分割

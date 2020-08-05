@@ -13,10 +13,9 @@
 
 using namespace skylu;
 class DirServer {
-  static const int kInitHeartBeatMs = 5000;
 public:
   DirServer(EventLoop *owner, const Address::ptr &addr,
-            const std::string &name,int HeartBeatMs = kInitHeartBeatMs);
+            const std::string &name,int HeartBeatMs = kCheckKeepAliveMs);
   ~DirServer() = default;
   void run();
 
@@ -25,17 +24,13 @@ private:
    *
    */
   void init();
-  /**
-   * 更新注册表（ 增删 时调用）
-   */
-  void updateRegisterFile();
   void onMessage(const TcpConnection::ptr &, Buffer *buff);
   /**
-   * 注册
+   * 注册 (心跳包 )
    * @param conne
    */
   void handleRegister(const TcpConnection::ptr &conne,
-                      const DirServerPacket *msg);
+                      Buffer * buff);
 
   /**
    * mqbusd 请求注册表
@@ -43,10 +38,10 @@ private:
    */
   void handleRequest(const TcpConnection::ptr &conne);
   /**
-   * 心跳包处理
+   * 心跳包处理 (废弃)
    * @param conne
    */
-  void handleKeepAlive(const TcpConnection::ptr &conne);
+  void handleKeepAlive(const TcpConnection::ptr &conne,Buffer * buff);
   /**
    * 发送确认包
    * @param conne
@@ -61,12 +56,10 @@ private:
 private:
   EventLoop *m_owner;
   TcpServer m_server;
-  std::unique_ptr<File> m_register_conf; // 落地到文件
-  std::unordered_map<std::string,std::string> m_conf; // 从文件中读出来的conneName- host:port地址
+  HostAndTopicsMap m_clients_info; // 维护clients的info (broker 下有什么主题 )
+  std::unordered_map<int,std::string > m_link_info_to_clients; /// fd- host:port (m_clients_info 的key)
   std::unordered_map<int, TcpConnection::ptr> m_clients; // fd-tcpconnect =  MqServers
   std::unordered_map<int,Timestamp> m_clients_heartBeat;  //维护对应fd的上次的心跳时间
-  const std::string kRegisterFileName;
-  const std::string kRegisterBackup;
   const int m_ClientHeartBeatMs; ///客户端心跳时间
 };
 
