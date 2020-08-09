@@ -122,7 +122,7 @@ bool File::isExits(const std::string &path) {
     if(access(path.c_str(),F_OK|W_OK|R_OK) == 0){
         return true;
     }else{
-        SKYLU_LOG_DEBUG(G_LOGGER)<<" access errno ="<<errno
+        SKYLU_LOG_DEBUG(G_LOGGER)<<"path ="<<path<<" access errno ="<<errno
         <<"    strerrno="<<strerror(errno);
         return false;
     }

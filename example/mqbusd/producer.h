@@ -56,7 +56,9 @@ private:
   void onMessageFromMqServer(const TcpConnection::ptr &conne,Buffer * buff)override ;
   void checkReSendSetTimer();
   void handleDelivery(const MqPacket *msg);
-  virtual void onConnectionToMqServer(const TcpConnection::ptr & conne)override;
+  void onConnectionToMqServer(const TcpConnection::ptr & conne)override;
+  void connectToMqServer()override ;
+  void removeInvaildConnection(const TcpConnection::ptr & conne);
 
 
 
@@ -87,7 +89,7 @@ public:
     produce->stop();
   }
   bool send(bool isRetry = false){return produce->send(isRetry);}
-  void put(const std::string& topic,const std::string& message){produce->put(topic,message);}
+  uint64_t put(const std::string& topic,const std::string& message){produce->put(topic,message);return message.size() + topic.size() + sizeof(MqPacket);}
   void setSendCallback(const Producer::SendCallback &cb){produce->setSendCallback(cb);}
   void setSendOkCallback(const Producer::SendOkCallbck &cb){produce->setSendOkCallback(cb);}
   void start(){produce->start();}

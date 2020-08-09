@@ -29,9 +29,14 @@ namespace skylu{
         assert(m_loop->isInLoopThread());
         //这里没有考虑文件描述符耗尽情况，可以改进： 在拿到大于0的fd后阻塞一下查看是否可读(epoll)
         Socket::ptr fd = m_socket->accept();
+        if(!fd){
+          SKYLU_LOG_ERROR(G_LOGGER)<<"accept error ";
+          return ;
+        }
         if(fd->isValid()){
             m_connection_cb(fd);
         }else{
+          SKYLU_LOG_FMT_DEBUG(G_LOGGER,"Accept error socket . error =%d ,strerrno =%s",errno,strerror(errno));
             fd->close();
         }
 
@@ -56,6 +61,9 @@ namespace skylu{
     }
 
     void TcpServer::removeConnection(const TcpConnection::ptr &conn) {
+      if(m_close_cb){
+        m_close_cb(conn);
+      }
         m_loop->runInLoop(std::bind(&TcpServer::removeConnectionInLoop,this,conn));
     }
     void TcpServer::removeConnectionInLoop(const TcpConnection::ptr &conn) {

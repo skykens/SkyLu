@@ -4,6 +4,8 @@
 
 #include "mqserver.h"
 #include <skylu/base/daemon.h>
+#include <string.h>
+#include <string>
 MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
                    std::vector<Address::ptr> &peerdirs_addr,
                    const std::string &name)
@@ -25,16 +27,50 @@ MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
 
 
   }
+  m_commit_partition.reset(new CommitPartition(".commit"+m_name));
 
+  //// 定时器任务 ：持久化提交数据
+  m_loop->runEvery(kPersistentCommmitTimeMs *Timestamp::kSecondToMilliSeconds,
+                   std::bind(&MqServer::persistentCommitWithMs,this));
+
+  /// 定时器任务  ： 持久化分区数据
   m_loop->runEvery(kPersistentTimeMs *Timestamp::kSecondToMilliSeconds,
                    std::bind(&MqServer::persistentPartitionWithMs,this));
+
+  /// 定时器任务  ： 发送心跳
   m_loop->runEvery(kSendKeepAliveMs * Timestamp::kSecondToMilliSeconds,
                    std::bind(&MqServer::sendKeepAliveWithMs, this));
+
   m_server.setMessageCallback(std::bind(&MqServer::onMessageFromMqBusd
                                       ,this,std::placeholders::_1,std::placeholders::_2));
+  m_server.setCloseCallback(std::bind(&MqServer::removeInvaildConnection,
+                                      this,std::placeholders::_1)); ///移除无效连接
 }
 
 void MqServer::init() {
+  std::vector<std::string> allfile;
+  DIR * curDir = opendir(".");
+  struct dirent * dp = nullptr;
+  if(curDir){
+    while((dp = readdir(curDir)) != nullptr){
+      if(dp->d_type == DT_DIR){
+        if(!strcmp(dp->d_name,".")||!strcmp(dp->d_name,"..")){
+          continue;
+        }
+        std::string dirname(dp->d_name);
+        int index = dirname.find('-');
+        if(index == -1){
+          SKYLU_LOG_FMT_ERROR(G_LOGGER,"error dir[%s] exist. ",dirname.c_str());
+          continue ;
+        }
+        int id = std::stoi(dirname.substr(index + 1));
+        std::string topicName = dirname.substr(0,index);
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"load partition[%s-%d]",topicName.c_str(),id);
+        m_partition[topicName].reset(new Partition(topicName,id));
+      }
+    }
+
+  }
   for(auto & m_dirpeer_client : m_dirpeer_clients){
     m_dirpeer_client->connect();
 
@@ -117,7 +153,7 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"msg from conne[%s]",conne->getName().c_str());
   if(buff->readableBytes() < sizeof(MqPacket)){
     conne->shutdown();
-    SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] send error packet size[%d]",conne->getName().c_str(),buff->readableBytes());
+    SKYLU_LOG_FMT_ERROR(G_LOGGER,"conne[%s] send error packet size[%d]",conne->getName().c_str(),buff->readableBytes());
     return ;
   }
   while(buff->readableBytes()>sizeof(MqPacket)) {
@@ -128,31 +164,26 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
       SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] send too larget packet size[%d]",conne->getName().c_str(),buff->getWPos());
       return ;
     }
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = %d",conne->getName().c_str(),msg->command);
     switch (msg->command) {
     case MQ_COMMAND_DELIVERY:
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = DELIVERY",conne->getName().c_str());
       /// 投递
       handleDeliver(msg);
       simpleSendReply(msg->messageId,MQ_COMMAND_DELIVERY,conne);
       break;
-    case MQ_COMMAND_HEARTBEAT:
-      ///消费者发过来的心跳
-      handleHeartBeat(msg);
-      break;
     case MQ_COMMAND_PULL:
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = PULL",conne->getName().c_str());
       /// 拉取消息
       handlePull(conne,msg);
       break;
+    case MQ_COMMAND_CANCEL_SUBSCRIBE:
     case MQ_COMMAND_SUBSCRIBE:
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = SUBSCRIBE / CANCEL_SUBCRIBE",conne->getName().c_str());
       /// 订阅
       handleSubscribe(conne,msg);
-      simpleSendReply(msg->messageId,MQ_COMMAND_SUBSCRIBE,conne);
-      break;
-    case MQ_COMMAND_CANCEL_SUBSCRIBE:
-      handleCancelSubscribe(msg);
-      simpleSendReply(msg->messageId,MQ_COMMAND_CANCEL_SUBSCRIBE,conne);
       break;
     case MQ_COMMAND_COMMIT:
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv msg->command = COMMIT",conne->getName().c_str());
       handleCommit(msg);
       simpleSendReply(msg->messageId,MQ_COMMAND_COMMIT,conne);
       break;
@@ -170,7 +201,7 @@ void MqServer::simpleSendReply(uint64_t messageId,char command, const TcpConnect
   Buffer buff;
   createCommandMqPacket(&buff,command,messageId);
   conne->send(&buff);
-  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"message[%ud] has send ack to conne[%s]",messageId,conne->getName().c_str());
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"message[%d] has send ack to conne[%s]",messageId,conne->getName().c_str());
 }
 void MqServer::handleDeliver(const MqPacket *msg) {
 
@@ -186,8 +217,10 @@ void MqServer::handleDeliver(const MqPacket *msg) {
       m_partition[topic].reset(new Partition(topic,0));
     }
     m_partition[topic]->addToLog(&tmp);
-    SKYLU_LOG_FMT_INFO(G_LOGGER,"recv msg[%ld] topic[%s] message[%s]",msg->messageId,topic.c_str(),message.c_str());
+    SKYLU_LOG_FMT_INFO(G_LOGGER,"recv msg[%d] topic[%s] message[%s]",msg->messageId,topic.c_str(),message.c_str());
 
+  }else{
+    SKYLU_LOG_FMT_WARN(G_LOGGER,"recv a repeat msg[%d]",msg->messageId);
   }
   /// 如果messageId已经存在在set中就不做处理。
 }
@@ -195,36 +228,73 @@ void MqServer::handleSubscribe(const TcpConnection::ptr& conne,const MqPacket *m
 
   std::string topic;
   getTopic(msg,topic);
+  Buffer buff;
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] recv subscribe topic[%s]",conne->getName().c_str(),topic.c_str());
-  m_consumer[conne].push_back(topic);
+  if(msg->command == MQ_COMMAND_CANCEL_SUBSCRIBE){
+    m_consumer[conne].erase(topic);
+
+  }else{
+    if(m_partition.find(topic) == m_partition.end()){
+      auto* info = const_cast<MqPacket * >(msg);
+      info->retCode = ErrCode::UNKNOW_TOPIC;
+    }else{
+      m_consumer[conne].insert(topic);
+    }
+  }
+  serializationToBuffer(msg,topic,buff);
+  conne->send(&buff);
+
 
 }
-void MqServer::handleHeartBeat(const MqPacket *msg) {
 
-}
 void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
   Buffer buff;
 
-  for(const auto  & topic : m_consumer[conne]) {
-    if (msg->offset < 0) {
-      MqPacket info = *msg;
-      assert(MqPacketLength(&info) == MqPacketLength(msg));
-      info.offset = m_consumer_commit[info.consumerGroupId][topic];
-      m_partition[topic]->sendToConsumer(&info,conne);
-
-    } else {
-
-      m_partition[topic]->sendToConsumer(msg, conne);
-    }
+  if(m_consumer.find(conne) == m_consumer.end()){
+    /// 没有订阅
+    SKYLU_LOG_FMT_WARN(G_LOGGER,"recv a unknown consumer. conne[%s]",conne->getName().c_str());
+    auto * info = const_cast<MqPacket *>(msg);
+    info->topicBytes = 0;
+    info->retCode = ErrCode::UNKNOW_CONSUMER;
+    serializationToBuffer(info,buff);
+    conne->send(&buff);
+    return ;
   }
 
+  if(msg->topicBytes == 0) {
 
+    for (const auto &topic : m_consumer[conne]) {
+      if (msg->offset == 0) {
+        auto * info = const_cast<MqPacket *>(msg);
+        info->offset =
+            m_commit_partition->getOffset(info->consumerGroupId, topic);
+        assert(m_partition.find(topic) != m_partition.end());
+        m_partition[topic]->sendToConsumer(info, conne);
+
+      } else {
+
+        m_partition[topic]->sendToConsumer(msg, conne);
+      }
+    }
+  }else{
+    /// 处理单个请求主题具体offset的情况
+    std::string topic;
+    getTopic(msg,topic);
+    if(msg->offset < 0){
+      auto * info = const_cast<MqPacket *>(msg);
+      info->offset = m_commit_partition->getOffset(info->consumerGroupId,topic);
+    }
+    m_partition[topic]->sendToConsumer(msg,conne);
+
+  }
 
 }
-void MqServer::handleCancelSubscribe(const MqPacket *msg) {
 
-}
 void MqServer::handleCommit(const MqPacket *msg) {
+  std::string topic;
+  getTopic(msg,topic);
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"commit topic[%s] offset = %d",topic.c_str(),msg->offset);
+  m_commit_partition->commit(msg->consumerGroupId,topic,msg->offset);
 
 }
 void MqServer::persistentPartitionWithMs() {
@@ -233,4 +303,14 @@ void MqServer::persistentPartitionWithMs() {
 
   }
 
+}
+
+void MqServer::persistentCommitWithMs() {
+  m_commit_partition->persistentDisk();
+}
+void MqServer::removeInvaildConnection(const TcpConnection::ptr &conne) {
+  if(m_consumer.find(conne) != m_consumer.end()){
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"m_consumer[conne : %s] delete .",conne->getName().c_str());
+    m_consumer.erase(conne);
+  }
 }

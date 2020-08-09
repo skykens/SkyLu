@@ -25,7 +25,7 @@
 using namespace  skylu;
 class MqBusd : Nocopyable{
   typedef std::unique_ptr<TcpClient> TcpClientPtr;
-  static const int kSendRequesetToDirSecond = 8;  /// 获取Dir注册表的间隔时间（单位：s）
+  static const int kSendRequesetToDirSecond = 5;  /// 获取Dir注册表的间隔时间（单位：s）
 public:
   typedef std::function<void(MqPacket *)> MqBusdMessageCallback;
   typedef TcpConnection::ConnectionCallback MqBusdConnectionCallback;

@@ -14,10 +14,12 @@ namespace  skylu {
 struct vnode_t{
   ///虚拟节点
   vnode_t() = default;
-  vnode_t(const std::string &src,int id):realIp(src),virtualIp(src +":" + std::to_string(id)){}
+  vnode_t(const std::string &src,const std::string &name,int id)
+      :realIp(src),virtualIp(src +":" + std::to_string(id)),conneName(name){}
 
   std::string realIp; ///实际主机节点地址
   std::string virtualIp;
+  std::string conneName; /// optional
 };
 
 struct MurMurHash{

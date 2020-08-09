@@ -5,10 +5,13 @@
 const MqPacket * serializationToMqPacket(Buffer * buff){
   const auto * msg = reinterpret_cast<const MqPacket * >(buff->curRead());
   if(buff->readableBytes() < MqPacketLength(msg)){
+    buff->resetAll();
     return nullptr;  ///可能一次性写入的量太大了导致需要分段
   }
-  if(!checkMqPacketEnd(msg))
+  if(!checkMqPacketEnd(msg)){
+    buff->updatePos(MqPacketLength(msg));
     return nullptr;
+  }
   buff->updatePos(MqPacketLength(msg));
   return msg;
 
@@ -56,6 +59,21 @@ void serializationToBuffer(std::vector<MqPacket> & msg,const std::unordered_set<
 
   }
 
+}
+void serializationToBuffer(const MqPacket* msg,const std::string &topic ,Buffer& buff){
+
+  ///TODO 可以优化一下
+  assert(msg->topicBytes == topic.size());
+  int length = MqPacketLength(msg);
+  char tmp[length];
+  auto * ptr = reinterpret_cast<MqPacket * >(tmp);
+  char * body = &(ptr->body);
+  memcpy(tmp, reinterpret_cast<const char *>(msg),sizeof(MqPacket));
+  memcpy(body,topic.c_str(),topic.size());
+  setMqPacketEnd(ptr);
+
+
+  buff.append(tmp,length);
 }
 void serializationToBuffer(const MqPacket* msg,const std::string &topic ,const std::string &message,Buffer& buff){
   ///TODO 可以优化一下

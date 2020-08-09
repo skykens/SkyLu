@@ -46,7 +46,7 @@ void MqBusd::onMessageFromDirServer(const TcpConnection::ptr &conne,
   }
   if(++m_recv_dir_count*2  >=  m_dir_clients.size()){
     /// 做一个并集 大部分的主备都已经返回信息了就可以更新
-    if(m_mqserver_info != m_mqserver_info_tmp) {
+    if(m_mqserver_info != m_mqserver_info_tmp || !m_isVaild) {
       updateMqServerClients();
     }
     m_mqserver_info_tmp.clear();

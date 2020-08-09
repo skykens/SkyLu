@@ -325,6 +325,7 @@ ssize_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
 
 
 Socket::~Socket() {
+  SKYLU_LOG_FMT_WARN(G_LOGGER,"Close socket fd = %d",m_fd);
     close();
 }
     ssize_t Socket::sendFile(const char *filename) {

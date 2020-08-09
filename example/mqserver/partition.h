@@ -23,9 +23,9 @@
 using namespace skylu;
 class Partition :Nocopyable{
 
-  static const uint64_t ksingleFileMaxSize = 1024 * 50; /// 64M
+  static const uint64_t ksingleFileMaxSize = 1024 * 1024*16; /// 16M
   static const int kMsgblockMaxSize =  4096;  ///单个消息超过多大的时候稀疏索引 +  1
-  static const int  kIndexMinInteral = 5;
+  static const int  kIndexMinInteral = 10;
 
 public:
   typedef std::unique_ptr<Partition> ptr;

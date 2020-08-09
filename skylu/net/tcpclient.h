@@ -32,6 +32,8 @@ public:
   void setConnectionCallback(const TcpConnection::ConnectionCallback& cb){m_connection_callback = cb;}
   void setMessageCallback(const TcpConnection::MessageCallback & cb){m_message_callback = cb;}
   void setWriteCompleteCallback(const TcpConnection::WriteCompleteCallback &cb){m_writeCompleteCallback = cb;}
+  void setCloseCallback(const TcpConnection::CloseCallback & cb){m_close_callback = cb;}
+
 
 private:
   void newConnection(const Socket::ptr & sock);
@@ -46,6 +48,7 @@ private:
   TcpConnection::ConnectionCallback  m_connection_callback;
   TcpConnection::MessageCallback  m_message_callback;
   TcpConnection::WriteCompleteCallback  m_writeCompleteCallback;
+  TcpConnection::CloseCallback  m_close_callback;
   Mutex m_mutex; // m_connection和m_connector 可能跨线程 需要加锁
   bool m_isRetry;
   bool m_enableConnect;

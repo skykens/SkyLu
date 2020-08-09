@@ -26,7 +26,7 @@ void Producer::sendInLoop(bool isRetry) {
   }
   if(m_hashHost.empty()){
     m_isVaild = false;
-    SKYLU_LOG_FMT_ERROR(G_LOGGER,"all server(%d) is sick.",m_mqserver_clients.size());
+    SKYLU_LOG_FMT_ERROR(G_LOGGER,"all server[%d] m_mqserver_info [%d] is sick.",m_mqserver_clients.size(),m_mqserver_info.size());
     if(m_send_cb)
        m_send_cb(false,queue);
     if(!isRetry)
@@ -35,12 +35,12 @@ void Producer::sendInLoop(bool isRetry) {
   MurMurHash hash;
   while(!queue.empty()) {
     /// 每个主题都会发送不同的broker 上，但是同个主题的内容都会通过一致性哈希放在同一个broker上
-    const auto &front = queue.front();
-    auto it = m_hashHost.find(hash(front.second.first));
+    const IdAndTopicMessagePair front = queue.front();
+    auto it = m_hashHost.find(hash(front.second.first));////对主题进行哈希找到节点
     TcpConnection::ptr conne = nullptr;
     if(it!=m_hashHost.end()){
       assert(m_vaild_conne.size());
-      conne = m_vaild_conne[it->second.realIp];
+      conne = m_vaild_conne[it->second.conneName];
     }
 
     for (; !queue.empty();) {
@@ -65,6 +65,11 @@ void Producer::sendInLoop(bool isRetry) {
       queue.pop_front();
     }
     if(conne){
+      static bool first = true;
+      if(first){
+        first = false;
+        SKYLU_LOG_FMT_ERROR(G_LOGGER,"this is no error! just for test . now : %d",Timestamp::now().getMicroSeconds());
+      }
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] to conne[%s]",front.second.first.c_str(),conne->getName().c_str());
       conne->send(&buff);
     }
@@ -178,9 +183,50 @@ void Producer::onConnectionToMqServer(const TcpConnection::ptr &conne) {
   MqBusd::onConnectionToMqServer(conne);
   ////先默认50个虚拟节点
   for(int i =0 ;i<kVirtualNodeNum;++i){
-    vnode_t note(conne->getName(),i);
+    std::string name = conne->getName();
+    int start = name.find(':') + 1;
+    int end = name.find('#',start);
+    vnode_t note(name.substr(start,end-start),name,i);
     m_hashHost.insert(note);
   }
   m_vaild_conne.insert({conne->getName(),conne});
   SKYLU_LOG_DEBUG(G_LOGGER)<<"add real node successful";
+}
+void Producer::removeInvaildConnection(const TcpConnection::ptr &conne) {
+  m_vaild_conne.erase(conne->getName());
+  for(int i =0 ;i<kVirtualNodeNum;++i){
+    std::string name = conne->getName();
+    int start = name.find(':') + 1;
+    int end = name.find('#',start);
+    vnode_t note(name.substr(start,end-start),name,i);
+    m_hashHost.erase(note);
+  }
+}
+void Producer::connectToMqServer() {
+  static int i = 0;
+  for (auto it : m_mqserver_info) {
+    /// 添加最新的Client FIXME  这里会有性能的问题
+    if (m_mqserver_clients.find(it.first) == m_mqserver_clients.end()
+        || !m_mqserver_clients[it.first]->getConnection()){
+      int flag = it.first.find(':');
+      std::string host(it.first.substr(0, flag++));
+      int port = atoi(it.first.substr(flag, it.first.size() - flag).c_str());
+      Address::ptr addr = IPv4Address::Create(host.c_str(), port);
+      m_mqserver_clients[it.first].reset(new TcpClient(
+          m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
+
+      SKYLU_LOG_FMT_INFO(G_LOGGER,
+                         "initMqServerClients| client host : %s port : %d",
+                         host.c_str(), port);
+
+      m_mqserver_clients[it.first]->connect();
+      m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
+          &Producer::onConnectionToMqServer, this, std::placeholders::_1));
+      m_mqserver_clients[it.first]->setMessageCallback(
+          std::bind(&Producer::onMessageFromMqServer, this,
+                    std::placeholders::_1, std::placeholders::_2));
+      m_mqserver_clients[it.first]->setCloseCallback(std::bind(&Producer::removeInvaildConnection,
+                                                                       this,std::placeholders::_1));
+    }
+  }
 }
