@@ -10,7 +10,7 @@ MqBusd::MqBusd(EventLoop *loop,const std::vector<Address::ptr> &dir_addrs,
       :m_loop(loop)
       ,m_name(name)
       ,m_dir_clients(dir_addrs.size())
-      ,m_updateMqServerConfTimer(nullptr,-1)
+      ,m_updateMqBrokerConfTimer(nullptr,-1)
       ,m_isVaild(false){
   for(size_t i = 0; i<m_dir_clients.size() ; ++i){
 
@@ -28,7 +28,7 @@ MqBusd::MqBusd(const std::string &name)
    :m_loop(nullptr)
       ,m_name(name)
       ,m_dir_clients()
-      ,m_updateMqServerConfTimer(nullptr,-1)
+      ,m_updateMqBrokerConfTimer(nullptr,-1)
       ,m_isVaild(false){
 
   }
@@ -47,7 +47,7 @@ void MqBusd::onMessageFromDirServer(const TcpConnection::ptr &conne,
   if(++m_recv_dir_count*2  >=  m_dir_clients.size()){
     /// 做一个并集 大部分的主备都已经返回信息了就可以更新
     if(m_mqserver_info != m_mqserver_info_tmp || !m_isVaild) {
-      updateMqServerClients();
+      updateMqBrokerClients();
     }
     m_mqserver_info_tmp.clear();
     m_recv_dir_count = 0;
@@ -58,7 +58,7 @@ void MqBusd::onMessageFromDirServer(const TcpConnection::ptr &conne,
 
 }
 
-void MqBusd::onConnectionToMqServer(const TcpConnection::ptr &conne) {
+void MqBusd::onConnectionToMqBroker(const TcpConnection::ptr &conne) {
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"connect to %s",conne->getName().c_str());
   m_isVaild = true;
   if(m_conne_cb){
@@ -68,7 +68,7 @@ void MqBusd::onConnectionToMqServer(const TcpConnection::ptr &conne) {
 
 }
 
-void MqBusd::updateMqServerClients() {
+void MqBusd::updateMqBrokerClients() {
 
   if(m_mqserver_info_tmp.empty()){
     /// 为空的时候说明服务端全部无效
@@ -89,11 +89,11 @@ void MqBusd::updateMqServerClients() {
         ++it;
       }
     }
-   connectToMqServer();
+   connectToMqBroker();
   }
-  if(m_updateMqServerConfTimer.getSequence() < 0){
-   m_updateMqServerConfTimer =  m_loop->runEvery(kSendRequesetToDirSecond,std::bind(&MqBusd::updateMqSeverConfWithMs,this));
-   assert(m_updateMqServerConfTimer.getSequence() >=0);
+  if(m_updateMqBrokerConfTimer.getSequence() < 0){
+   m_updateMqBrokerConfTimer =  m_loop->runEvery(kSendRequesetToDirSecond,std::bind(&MqBusd::updateMqSeverConfWithMs,this));
+   assert(m_updateMqBrokerConfTimer.getSequence() >=0);
   }
 
 }
@@ -105,7 +105,7 @@ void MqBusd::updateMqSeverConfWithMs() {
     else
       SKYLU_LOG_FMT_WARN(G_LOGGER,"DirClient[%s] disconnect ",it->getName().c_str());
   }
-  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"updateMqServerConfWithMs| now m_dir_clients' num = %d"
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"updateMqBrokerConfWithMs| now m_dir_clients' num = %d"
                                 ", m_mqserver_clients's num = %d"
                       ,m_dir_clients.size(),m_mqserver_clients.size());
 }
@@ -134,7 +134,7 @@ void MqBusd::init(const std::vector<Address::ptr> &dir_addrs) {
         ,this,std::placeholders::_1,std::placeholders::_2));
   }
 }
-void MqBusd::connectToMqServer() {
+void MqBusd::connectToMqBroker() {
 
   static int i = 0;
   for (auto it : m_mqserver_info) {
@@ -148,14 +148,14 @@ void MqBusd::connectToMqServer() {
           m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
 
       SKYLU_LOG_FMT_INFO(G_LOGGER,
-                         "initMqServerClients| client host : %s port : %d",
+                         "initMqBrokerClients| client host : %s port : %d",
                          host.c_str(), port);
 
       m_mqserver_clients[it.first]->connect();
       m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
-          &MqBusd::onConnectionToMqServer, this, std::placeholders::_1));
+          &MqBusd::onConnectionToMqBroker, this, std::placeholders::_1));
       m_mqserver_clients[it.first]->setMessageCallback(
-          std::bind(&MqBusd::onMessageFromMqServer, this,
+          std::bind(&MqBusd::onMessageFromMqBroker, this,
                     std::placeholders::_1, std::placeholders::_2));
     }
   }

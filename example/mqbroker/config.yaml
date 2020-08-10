@@ -6,8 +6,6 @@ DirServer:
     port: 6002
 LocalAddress: 9.134.125.208
 Port: 3015
-###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
-LogLevel: DEBUG
 
 ## 及持久化日志的间隔时间
 PersistentLogMs: 5000
@@ -23,3 +21,10 @@ MsgBlockMax: 4096
 
 ## 索引间的最小间隔
 IndexMinInterval: 10
+##  提交日志
+CommitLog: commit.log
+##全局日志
+GlobalLog: global.log
+###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
+LogLevel: ERROR
+Daemon: NO

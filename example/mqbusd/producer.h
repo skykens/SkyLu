@@ -58,11 +58,11 @@ private:
 
   void sendInLoop(bool isRetry);
 
-  void onMessageFromMqServer(const TcpConnection::ptr &conne,Buffer * buff)override ;
+  void onMessageFromMqBroker(const TcpConnection::ptr &conne,Buffer * buff)override ;
   void checkReSendSetTimer();
   void handleDelivery(const MqPacket *msg);
-  void onConnectionToMqServer(const TcpConnection::ptr & conne)override;
-  void connectToMqServer()override ;
+  void onConnectionToMqBroker(const TcpConnection::ptr & conne)override;
+  void connectToMqBroker()override ;
   void removeInvaildConnection(const TcpConnection::ptr & conne);
 
 

@@ -394,7 +394,7 @@ void FileLogAppender::log(std::shared_ptr<Logger> logger,LogLevel::Level level ,
     {
         uint64_t now = event->getTime();
         if(now >= m_lastTime+3){
-            reopen();
+           // reopen();
             m_lastTime=now;
         }
         MutexType::Lock lock(m_mutex);

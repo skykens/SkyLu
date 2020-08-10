@@ -13,7 +13,7 @@ Consumer::Consumer(EventLoop * loop,const std::vector<Address::ptr> &dir_addrs,
   }
 
 }
-void Consumer::onMessageFromMqServer(const TcpConnection::ptr &conne,
+void Consumer::onMessageFromMqBroker(const TcpConnection::ptr &conne,
                                      Buffer *buff) {
   bool hasPull = false;
   while(buff->readableBytes()>sizeof(MqPacket)) {
@@ -162,8 +162,8 @@ void Consumer::pullInLoop() {
 
 }
 
-void Consumer::onConnectionToMqServer(const TcpConnection::ptr &conne) {
-  MqBusd::onConnectionToMqServer(conne);
+void Consumer::onConnectionToMqBroker(const TcpConnection::ptr &conne) {
+  MqBusd::onConnectionToMqBroker(conne);
   subscribeInLoop(conne);
 }
 void Consumer::handleSubscribe(const MqPacket *msg,const TcpConnection::ptr &conne) {
@@ -231,7 +231,7 @@ void Consumer::handlePull(const MqPacket *msg,const TcpConnection::ptr &conne) {
 }
 
 
-void Consumer::connectToMqServer() {
+void Consumer::connectToMqBroker() {
 
   static int i = 0;
   for( auto &  topic : m_topic) {
@@ -254,14 +254,14 @@ void Consumer::connectToMqServer() {
                   m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
 
               SKYLU_LOG_FMT_INFO(G_LOGGER,
-                                 "initMqServerClients| client host : %s port : %d",
+                                 "initMqBrokerClients| client host : %s port : %d",
                                  host.c_str(), port);
 
               m_mqserver_clients[it.first]->connect();
               m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
-                  &Consumer::onConnectionToMqServer, this, std::placeholders::_1));
+                  &Consumer::onConnectionToMqBroker, this, std::placeholders::_1));
               m_mqserver_clients[it.first]->setMessageCallback(
-                  std::bind(&Consumer::onMessageFromMqServer, this,
+                  std::bind(&Consumer::onMessageFromMqBroker, this,
                             std::placeholders::_1, std::placeholders::_2));
               m_mqserver_clients[it.first]->setCloseCallback(std::bind(&Consumer::removeInvaildConnection,
                                                                        this,std::placeholders::_1));

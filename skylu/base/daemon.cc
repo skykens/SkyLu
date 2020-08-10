@@ -26,7 +26,7 @@ namespace skylu{
         }
 
 
-        chdir("/");
+        chdir(".");
 
         for(int i=0;i<3;i++){
             close(i);

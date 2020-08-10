@@ -39,7 +39,7 @@ int main(int argc,char **argv) {
   try {
     config = YAML::LoadFile(argv[1]);
   } catch (YAML::BadFile &e) {
-    std::cout << "read error!" << std::endl;
+    std::cout << "read yaml error!" << std::endl;
     return -1;
   }
   G_LOGGER->setLevel(
@@ -64,6 +64,9 @@ int main(int argc,char **argv) {
                       config["GroupId"].as<int>());
     for(auto it : topics){
       consumer.subscribe(it);
+    }
+    if(config["MaxEnableBytes"]){
+      consumer.setMaxEnableBytes(config["MaxEnableBytes"].as<int>());
     }
 
     consumer.setPullCallback([&consumer](const Consumer::TopicMap &msg) {
@@ -91,7 +94,8 @@ int main(int argc,char **argv) {
     });
     consumer.poll();
 
-  } else if (config["Type"].as<std::string>() == "producer") {
+  }
+  else if (config["Type"].as<std::string>() == "producer") {
 
     std::vector<int> statistical(config["Producer"].size(), 0);
     long double  total_time = 0;
@@ -118,7 +122,7 @@ int main(int argc,char **argv) {
         vec[i]->send(true);
       }
 
-      std::cout<<"******please wait for seconds"<<std::endl;
+      std::cout<<"******please wait for seconds*******"<<std::endl;
       for (const auto &it : vec) {
         it->wait();
       }
@@ -137,7 +141,29 @@ int main(int argc,char **argv) {
     std::cout<<"***************************"<<std::endl;
 
     ///消息发送完成后生产者线程退出去
-  } else {
+  }
+  else if(config["Type"].as<std::string>() == "producer-console")
+  {
+    std::string topic,msg;
+    std::unique_ptr<ProducerWrap> producer(new ProducerWrap(peer_addrs,"Producer Console"));
+    producer->start();
+    std::cout<<"********Producer-Console********"<<std::endl;
+    std::cout<<"please enter topic : ";
+    std::cin>>topic;
+    while(1){
+      std::cout<<"please enter msg : ";
+      std::cin>>msg;
+      producer->put(topic,msg);
+      producer->send(true);
+      msg.clear();
+
+      }
+
+
+    return 0;
+
+  }
+  else {
 
     std::cout << "error type" << std::endl;
     return -1;

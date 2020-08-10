@@ -2,18 +2,19 @@
 // Created by jimlu on 2020/7/22.
 //
 
-#include "mqserver.h"
+#include "mqbroker.h"
 #include <skylu/base/daemon.h>
-#include <string.h>
+#include <cstring>
 #include <string>
-MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
+MqBroker::MqBroker(EventLoop *loop, const Address::ptr &local_addr,
                    std::vector<Address::ptr> &peerdirs_addr,
                    const std::string &name, int PersistentCommitMs,
                    int PersistentLogMs, uint64_t singleFileMax, int MsgBlockMax,
-                   int IndexMinInterval)
+                   int IndexMinInterval,
+                   const std::string & commitLogfilename)
 
-    :m_name(name)
-    ,m_loop(loop)
+:m_name(name)
+,m_loop(loop)
     ,m_server(loop,local_addr,name + "#TcpServer#")
     ,m_dirpeer_clients(peerdirs_addr.size())
     ,m_local_addr(local_addr)
@@ -21,41 +22,43 @@ MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
     ,kPersistentCommmitTimeMs(PersistentCommitMs)
     ,ksingleFileMaxSize(singleFileMax*1024)
     ,kMsgblockMaxSize(MsgBlockMax)
-    ,kIndexMinInterval(IndexMinInterval){
+    ,kIndexMinInterval(IndexMinInterval)
+    ,kCommitLogFileName(commitLogfilename){
 
-  Signal::hook(SIGPIPE,[](){});
   for(size_t i = 0 ; i < peerdirs_addr.size(); ++i){
     m_dirpeer_clients[i].reset(new TcpClient(m_loop
         ,peerdirs_addr[i]
         ,"#DirPeerClientID #" + std::to_string(i)));
     m_dirpeer_clients[i]->enableRetry();
-    m_dirpeer_clients[i]->setConnectionCallback(std::bind(&MqServer::sendRegisterWithMs,this,std::placeholders::_1));
-    m_dirpeer_clients[i]->setMessageCallback(std::bind(&MqServer::onMessageFromDirPeer
+    m_dirpeer_clients[i]->setConnectionCallback(std::bind(&MqBroker::sendRegisterWithMs,this,std::placeholders::_1));
+    m_dirpeer_clients[i]->setMessageCallback(std::bind(&MqBroker::onMessageFromDirPeer
         ,this,std::placeholders::_1,std::placeholders::_2));
 
 
   }
-  m_commit_partition.reset(new CommitPartition(".commit"+m_name));
+  m_commit_partition.reset(new CommitPartition(".commit"+m_name,commitLogfilename));
 
   //// 定时器任务 ：持久化提交数据
   m_loop->runEvery(kPersistentCommmitTimeMs *Timestamp::kSecondToMilliSeconds,
-                   std::bind(&MqServer::persistentCommitWithMs,this));
+                   std::bind(&MqBroker::persistentCommitWithMs,this));
 
   /// 定时器任务  ： 持久化分区数据
   m_loop->runEvery(kPersistentTimeMs *Timestamp::kSecondToMilliSeconds,
-                   std::bind(&MqServer::persistentPartitionWithMs,this));
+                   std::bind(&MqBroker::persistentPartitionWithMs,this));
 
   /// 定时器任务  ： 发送心跳
   m_loop->runEvery(kSendKeepAliveMs * Timestamp::kSecondToMilliSeconds,
-                   std::bind(&MqServer::sendKeepAliveWithMs, this));
+                   std::bind(&MqBroker::sendKeepAliveWithMs, this));
 
-  m_server.setMessageCallback(std::bind(&MqServer::onMessageFromMqBusd
+  m_server.setMessageCallback(std::bind(&MqBroker::onMessageFromMqBusd
       ,this,std::placeholders::_1,std::placeholders::_2));
-  m_server.setCloseCallback(std::bind(&MqServer::removeInvaildConnection,
+  m_server.setCloseCallback(std::bind(&MqBroker::removeInvaildConnection,
                                       this,std::placeholders::_1)); ///移除无效连接
+
 }
 
-void MqServer::init() {
+void MqBroker::init() {
+
   std::vector<std::string> allfile;
   DIR * curDir = opendir(".");
   struct dirent * dp = nullptr;
@@ -89,12 +92,13 @@ void MqServer::init() {
 
 
 
-void MqServer::run() {
+void MqBroker::run() {
   init();
+  initHookSignal();
   m_server.start();
   m_loop->loop();
 }
-void MqServer::sendRegisterWithMs(const TcpConnection::ptr &conne) {
+void MqBroker::sendRegisterWithMs(const TcpConnection::ptr &conne) {
   Buffer buff;
   char tmp[sizeof(DirServerPacket)];
   size_t length = 0;
@@ -117,7 +121,7 @@ void MqServer::sendRegisterWithMs(const TcpConnection::ptr &conne) {
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send RegisterRequest to conne[%s]",conne->getName().c_str());
 
 }
-void MqServer::sendKeepAliveWithMs() {
+void MqBroker::sendKeepAliveWithMs() {
   for(const auto& it : m_dirpeer_clients){
     const auto & conne = it->getConnection();
     if(conne){
@@ -130,7 +134,7 @@ void MqServer::sendKeepAliveWithMs() {
 
 }
 
-void MqServer::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff) {
+void MqBroker::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff) {
  const  auto * msg = reinterpret_cast<const DirServerPacket*>(buff->curRead());
 
  buff->updatePos(sizeof(DirServerPacket));
@@ -144,7 +148,7 @@ void MqServer::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff
      SKYLU_LOG_FMT_DEBUG(G_LOGGER, "send registerWithMs[%s] to peers[num = %d] ",
                          kSendKeepAliveToMqMs,m_dirpeer_clients.size());
      m_loop->runEvery(kSendKeepAliveMs * Timestamp::kSecondToMilliSeconds,
-                      std::bind(&MqServer::sendRegisterWithMs, this,conne));
+                      std::bind(&MqBroker::sendRegisterWithMs, this,conne));
      isVaild = true;
    }
 
@@ -156,7 +160,7 @@ void MqServer::onMessageFromDirPeer(const TcpConnection::ptr &conne,Buffer *buff
 
 
 }
-void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
+void MqBroker::onMessageFromMqBusd(const TcpConnection::ptr &conne,
                                    Buffer *buff) {
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"msg from conne[%s]",conne->getName().c_str());
   if(buff->readableBytes() < sizeof(MqPacket)){
@@ -203,13 +207,13 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
 
 
 }
-void MqServer::simpleSendReply(uint64_t messageId,char command, const TcpConnection::ptr &conne) {
+void MqBroker::simpleSendReply(uint64_t messageId,char command, const TcpConnection::ptr &conne) {
   Buffer buff;
   createCommandMqPacket(&buff,command,messageId);
   conne->send(&buff);
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"message[%d] has send ack to conne[%s]",messageId,conne->getName().c_str());
 }
-void MqServer::handleDeliver(const MqPacket *msg) {
+void MqBroker::handleDeliver(const MqPacket *msg) {
 
   ///投递
   if(m_messageId_set.find(msg->messageId) == m_messageId_set.end()){
@@ -230,7 +234,7 @@ void MqServer::handleDeliver(const MqPacket *msg) {
   }
   /// 如果messageId已经存在在set中就不做处理。
 }
-void MqServer::handleSubscribe(const TcpConnection::ptr& conne,const MqPacket *msg) {
+void MqBroker::handleSubscribe(const TcpConnection::ptr& conne,const MqPacket *msg) {
 
   std::string topic;
   getTopic(msg,topic);
@@ -253,7 +257,7 @@ void MqServer::handleSubscribe(const TcpConnection::ptr& conne,const MqPacket *m
 
 }
 
-void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
+void MqBroker::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
   Buffer buff;
 
   if(m_consumer.find(conne) == m_consumer.end()){
@@ -292,20 +296,25 @@ void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
       info->offset = m_commit_partition->getOffset(info->consumerGroupId,topic);
     }
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] offset[%d] to conne[%s]",topic.c_str(),msg->offset,conne->getName().c_str());
+    if(m_partition.find(topic) == m_partition.end()){
+      SKYLU_LOG_ERROR(G_LOGGER)<<"error topic!";
+      return;
+
+    }
     m_partition[topic]->sendToConsumer(msg,conne);
 
   }
 
 }
 
-void MqServer::handleCommit(const MqPacket *msg) {
+void MqBroker::handleCommit(const MqPacket *msg) {
   std::string topic;
   getTopic(msg,topic);
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"commit topic[%s] offset = %d",topic.c_str(),msg->offset);
   m_commit_partition->commit(msg->consumerGroupId,topic,msg->offset);
 
 }
-void MqServer::persistentPartitionWithMs() {
+void MqBroker::persistentPartitionWithMs() {
   for(auto &it  : m_partition){
     it.second->syncTodisk();
 
@@ -313,12 +322,18 @@ void MqServer::persistentPartitionWithMs() {
 
 }
 
-void MqServer::persistentCommitWithMs() {
+void MqBroker::persistentCommitWithMs() {
   m_commit_partition->persistentDisk();
 }
-void MqServer::removeInvaildConnection(const TcpConnection::ptr &conne) {
+void MqBroker::removeInvaildConnection(const TcpConnection::ptr &conne) {
   if(m_consumer.find(conne) != m_consumer.end()){
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"m_consumer[conne : %s] delete .",conne->getName().c_str());
     m_consumer.erase(conne);
   }
+}
+void MqBroker::HandleSIGNAL() {
+
+}
+void MqBroker::initHookSignal() {
+  Signal::hook(SIGPIPE,[](){});
 }

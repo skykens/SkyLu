@@ -5,7 +5,7 @@ DirServer:
   - addr: 127.0.0.1
     port: 6002
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
-LogLevel: FATAL
+LogLevel: ERROR
 Producer:
   - name: producer1
     topic:

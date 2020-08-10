@@ -97,7 +97,10 @@ void TcpClient::newConnection(const Socket::ptr & sock) {
 void TcpClient::removeConnection(const TcpConnection::ptr &conne) {
   m_loop->assertInLoopThread();
   assert(m_loop == conne->getLoop());
-  m_close_callback(conne);
+  if(m_close_callback){
+    m_close_callback(conne);
+
+  }
   {
     Mutex::Lock lock(m_mutex);
     assert(m_connection == conne);

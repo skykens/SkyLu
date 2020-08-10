@@ -33,11 +33,12 @@ void DirServer::init() {
   m_server.setCloseCallback([this](const  TcpConnection::ptr & conne){
     ///如果这里不做的话会延长clients连接的生命期
     SKYLU_LOG_FMT_DEBUG(G_LOGGER,"close connection %s",conne->getName().c_str());
-    assert(m_link_info_to_clients.find(conne->getSocketFd()) != m_link_info_to_clients.end());
-    m_clients_info.erase(m_link_info_to_clients[conne->getSocketFd()]);
-    m_link_info_to_clients.erase(conne->getSocketFd());
-    m_clients.erase(conne->getSocketFd());
-    m_clients_heartBeat.erase(conne->getSocketFd());
+    if(m_link_info_to_clients.find(conne->getSocketFd()) != m_link_info_to_clients.end()) {
+      m_clients_info.erase(m_link_info_to_clients[conne->getSocketFd()]);
+      m_link_info_to_clients.erase(conne->getSocketFd());
+      m_clients.erase(conne->getSocketFd());
+      m_clients_heartBeat.erase(conne->getSocketFd());
+    }
 
   });
 

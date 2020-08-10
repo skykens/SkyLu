@@ -111,6 +111,7 @@ bool Producer::send(bool isRetry) {
 void Producer::put(const std::string &topic, const std::string &message) {
   Mutex::Lock lock(m_mutex);
   auto id = createMessageId();
+  assert(m_resend_set.find(id) == m_resend_set.end());
   m_send_queue.push_back({id,{topic,message}});
 }
 void Producer::run() {
@@ -124,7 +125,7 @@ void Producer::run() {
   m_loop = nullptr;
 
 }
-void Producer::onMessageFromMqServer(const TcpConnection::ptr &conne,
+void Producer::onMessageFromMqBroker(const TcpConnection::ptr &conne,
                                      Buffer *buff) {
   while(buff->readableBytes()>sizeof(MqPacket)) {
     const MqPacket *msg = serializationToMqPacket(buff);
@@ -192,8 +193,8 @@ void Producer::handleDelivery(const MqPacket * msg) {
     m_empty_queueAndsResend.notify();
   }
 }
-void Producer::onConnectionToMqServer(const TcpConnection::ptr &conne) {
-  MqBusd::onConnectionToMqServer(conne);
+void Producer::onConnectionToMqBroker(const TcpConnection::ptr &conne) {
+  MqBusd::onConnectionToMqBroker(conne);
   ////先默认50个虚拟节点
   for(int i =0 ;i<kVirtualNodeNum;++i){
     std::string name = conne->getName();
@@ -215,7 +216,7 @@ void Producer::removeInvaildConnection(const TcpConnection::ptr &conne) {
     m_hashHost.erase(note);
   }
 }
-void Producer::connectToMqServer() {
+void Producer::connectToMqBroker() {
   static int i = 0;
   for (auto it : m_mqserver_info) {
     /// 添加最新的Client FIXME  这里会有性能的问题
@@ -228,14 +229,14 @@ void Producer::connectToMqServer() {
           m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
 
       SKYLU_LOG_FMT_INFO(G_LOGGER,
-                         "initMqServerClients| client host : %s port : %d",
+                         "initMqBrokerClients| client host : %s port : %d",
                          host.c_str(), port);
 
       m_mqserver_clients[it.first]->connect();
       m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
-          &Producer::onConnectionToMqServer, this, std::placeholders::_1));
+          &Producer::onConnectionToMqBroker, this, std::placeholders::_1));
       m_mqserver_clients[it.first]->setMessageCallback(
-          std::bind(&Producer::onMessageFromMqServer, this,
+          std::bind(&Producer::onMessageFromMqBroker, this,
                     std::placeholders::_1, std::placeholders::_2));
       m_mqserver_clients[it.first]->setCloseCallback(std::bind(&Producer::removeInvaildConnection,
                                                                        this,std::placeholders::_1));

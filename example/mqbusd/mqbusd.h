@@ -48,12 +48,12 @@ protected:
   void onMessageFromDirServer(const TcpConnection::ptr & conne,Buffer * buff);
   void onNewDirServerConnection(const TcpConnection::ptr & conne);
 
-  virtual void onConnectionToMqServer(const TcpConnection::ptr & conne);
-  virtual void onMessageFromMqServer(const TcpConnection::ptr &conne,Buffer * buff) = 0;
-  virtual void connectToMqServer();
+  virtual void onConnectionToMqBroker(const TcpConnection::ptr & conne);
+  virtual void onMessageFromMqBroker(const TcpConnection::ptr &conne,Buffer * buff) = 0;
+  virtual void connectToMqBroker();
 
   void updateMqSeverConfWithMs();
-  virtual void updateMqServerClients();
+  virtual void updateMqBrokerClients();
   void connect();
   void init(const std::vector<Address::ptr> &dir_addrs);
 
@@ -67,7 +67,7 @@ protected:
 
   std::unordered_map<std::string,TcpClientPtr> m_mqserver_clients; /// 连接到mqserver上的clients   host:port - TcpClientPtr
 
-  Timerid m_updateMqServerConfTimer;   ///获取Dir注册表的定时器
+  Timerid m_updateMqBrokerConfTimer;   ///获取Dir注册表的定时器
   bool m_isVaild;
   MqBusdConnectionCallback  m_conne_cb;
 

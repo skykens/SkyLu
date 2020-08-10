@@ -3,10 +3,17 @@
 //
 
 #include "commitpartition.h"
-CommitPartition::CommitPartition(const std::string& name)
-    :m_cond(m_mutex),kCommitPartitionFilename(name),kCommitPartitionbakFilename(name + ".bak")
-      ,m_thread(std::bind(&CommitPartition::persistentToDiskInThread,this),"CommitPartitionThread",true),isQuit(false),isDirty(false){
+const char * CommitPartition::kLoggerName = "commit_logger";
+CommitPartition::CommitPartition(const std::string& name,const std::string & logname)
+    :m_cond(m_mutex),kCommitPartitionFilename(name),kCommitPartitionbakFilename(name + ".bak"),kCommitPartitionLogName(logname)
+      ,m_thread(std::bind(&CommitPartition::persistentToDiskInThread,this),"CommitPartitionThread",true)
+      ,isQuit(false),isDirty(false)
+      {
   init();
+  SKYLU_LOG_NAME(kLoggerName)->clearAppenders();
+  if(!kCommitPartitionLogName.empty()){
+    SKYLU_LOG_NAME(kLoggerName)->addAppender(LogAppender::ptr(new FileLogAppender(kCommitPartitionLogName)));
+  }
 
 }
 CommitPartition::~CommitPartition() {

@@ -23,10 +23,10 @@
 
 
 using namespace skylu;
-class MqServer :Nocopyable{
+class MqBroker :Nocopyable{
   typedef std::unique_ptr<TcpClient> TcpClientPtr;
 public:
-  MqServer(EventLoop * loop
+  MqBroker(EventLoop * loop
            ,const Address::ptr& local_addr
            ,std::vector<Address::ptr>& peerdirs_addr
            ,const std::string & name
@@ -34,15 +34,22 @@ public:
            ,int PersistentLogMs = 5000
            ,uint64_t singleFileMax = 64
            ,int MsgBlockMax = 4096
-           ,int IndexMinInterval = 10);
+           ,int IndexMinInterval = 10
+           ,const std::string & commitLogfilename = ""
+           );
   void run();
 
-  ~MqServer() = default;
+  ~MqBroker() = default;
 
 
 private:
 
   void init();
+  void initHookSignal();
+  /**
+   * 处理SIGNAL 信号
+   */
+  void HandleSIGNAL();
   void persistentPartitionWithMs();
   void persistentCommitWithMs();
   void sendRegisterWithMs(const TcpConnection::ptr & conne);
@@ -97,6 +104,7 @@ private:
   const uint64_t ksingleFileMaxSize; ///
   const int kMsgblockMaxSize;  ///设置单个消息超过多大的时候稀疏索引 +  1
   const int  kIndexMinInterval;
+  const std::string kCommitLogFileName; ///提交日志存放的位置
 
 
 

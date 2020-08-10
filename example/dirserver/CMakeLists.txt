@@ -10,4 +10,4 @@ add_subdirectory(../../skylu skylu.out)
 include_directories(../../)
 
 add_executable(dirserver main.cc ${DIR_SRCS})
-target_link_libraries(dirserver skylu pthread)
+target_link_libraries(dirserver skylu pthread yaml-cpp)

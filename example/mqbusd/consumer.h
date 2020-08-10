@@ -110,14 +110,14 @@ private:
    * 消费者需要重载这个函数，成功连接之后马上订阅
    * @param conne
    */
-  void onConnectionToMqServer(const TcpConnection::ptr &conne) override;
-  void onMessageFromMqServer(const TcpConnection::ptr &conne, Buffer *buff) override;
+  void onConnectionToMqBroker(const TcpConnection::ptr &conne) override;
+  void onMessageFromMqBroker(const TcpConnection::ptr &conne, Buffer *buff) override;
   void subscribeInLoop(const TcpConnection::ptr &conne);
   void subscribeInLoop(const std::string& topic,const TcpConnection::ptr &conne);
   /**
    * 当获取到了Broker的Info根据本地的订阅信息来决定连接到哪台broker上
    */
-  void connectToMqServer()override ;
+  void connectToMqBroker()override ;
   /**
    *  如果本地保存的m_commit_offset 为空的话就根据远端的提交记录来消费。
    *
@@ -139,7 +139,7 @@ private:
   int32_t m_groupId;  ///远端唯一标识consumer offset
 
   std::unordered_map<std::string,CommitInfo> m_commit_offset; ///本地保留一份
-  std::unordered_map<int,std::string> m_recv_messageId;  /// 主要用来判重的。
+  std::unordered_map<uint64_t ,std::string> m_recv_messageId;  /// 主要用来判重的。
   TopicMap  m_recv_messages; /// 接受到的消息 ，当commit 的时候会移除对应的就message
   int64_t m_maxEnableBytes;
   SubscribeCallback m_subscribe_cb;

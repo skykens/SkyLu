@@ -39,8 +39,9 @@ struct CommitInfo{
 
 class CommitPartition :Nocopyable{
 public:
+  static const  char * kLoggerName;
   typedef std::unique_ptr<CommitPartition> ptr;
-  CommitPartition(const std::string & name);
+  explicit CommitPartition(const std::string & name,const std::string & logname);
   ~CommitPartition();
   void commit(uint64_t id,const std::string & topic,uint64_t offset);
   uint64_t getOffset(int id,const std::string &topic);
@@ -58,6 +59,7 @@ private:
   std::unordered_map<uint64_t,CommitInfo> m_infos; //// id:topic:offset
   const std::string kCommitPartitionFilename;
   const std::string kCommitPartitionbakFilename;
+  const std::string kCommitPartitionLogName;
   Thread m_thread;
   bool isQuit;
   bool isDirty;

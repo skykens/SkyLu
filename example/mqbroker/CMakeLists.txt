@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(mqserver)
+project(mqbroker)
 set(CMAKE_CXX_STANDARD 11)
 
 
@@ -16,5 +16,5 @@ include_directories(/usr/local/include)
 link_directories(/usr/local/lib64)
 
 
-add_executable(mqserver main.cc ${DIR_SRCS})
-target_link_libraries(mqserver skylu pthread libyaml-cpp.a)
+add_executable(mqbroker main.cc ${DIR_SRCS})
+target_link_libraries(mqbroker skylu pthread libyaml-cpp.a)

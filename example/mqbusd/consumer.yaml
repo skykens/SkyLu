@@ -1,6 +1,9 @@
 
 Name: consumer
 ##必填 指定启动的对象 (小写)
+##consumer: 消费者
+##producer: 生产者
+##producer-console: 控制台版本的生产者
 Type: consumer
 DirServer:
   - addr: 127.0.0.1
@@ -9,8 +12,11 @@ DirServer:
     port: 6002
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
 LogLevel: DEBUG
-GroupId: 1
+GroupId: 2
 PullIntervalMs: 500
+
+##不设置表示不限流
+MaxEnbaleBytes: 65536
 
 Topic:
   - hello0

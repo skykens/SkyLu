@@ -1,0 +1,10 @@
+Name: Dir1
+LocalAddress: 127.0.0.1
+Port: 6001
+
+##j检测broker的心跳间隔（单位： Ms）
+CheckKeepAlive: 5000
+LogLevel: DEBUG
+Daemon: YES
+##全局日志的存放地址
+GlobalLog: dirserver.log
