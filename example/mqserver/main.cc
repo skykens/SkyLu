@@ -8,94 +8,46 @@
 #include "mqserver.h"
 #include "partition.h"
 #include "commitpartition.h"
+#include "yaml-cpp/yaml.h"
 
 using namespace  skylu;
 int main(int argc,char **argv)
 {
- // G_LOGGER->setLevel(LogLevel::INFO);
-  if(argc < 3){
-    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"your argc = %d,usgae host port id",argc);
+  YAML::Node config;
+  if(argc < 2){
+    std::cout<<"please enter config.yaml"<<std::endl;
+  }
+  try{
+    config = YAML::LoadFile(argv[1]);
+  }catch(YAML::BadFile &e){
+    std::cout<<"read error!"<<std::endl;
     return -1;
   }
-  G_LOGGER->setLevel(LogLevel::ERROR);
+
+
+  G_LOGGER->setLevel(LogLevel::FromString(config["LogLevel"].as<std::string>()));
   EventLoop loop;
-  Address::ptr addr = IPv4Address::Create(argv[1],atoi(argv[2]));
-  std::vector<Address::ptr> peer_addrs(2);
-  peer_addrs[0] = IPv4Address::Create("127.0.0.1",6001);
-  peer_addrs[1] = IPv4Address::Create("127.0.0.1",6002);
-  MqServer server(&loop,addr,peer_addrs,"MqServer " + std::to_string(addr->getPort()));
+  std::vector<Address::ptr> peer_addrs(config["DirServer"].size());
+  for(size_t i = 0;i<peer_addrs.size();++i){
+    peer_addrs[i] = IPv4Address::Create(
+        config["DirServer"][i]["addr"].as<std::string>().c_str(),
+            config["DirServer"][i]["port"].as<uint32_t>());
+
+  }
+  Address::ptr addr = IPv4Address::Create(
+      config["LocalAddress"].as<std::string>().c_str(),
+      config["Port"].as<uint32_t>()
+      );
+  std::string name = config["Name"].as<std::string>();
+  MqServer server(&loop,addr,peer_addrs,name,
+                  config["PersistentCommitMs"].as<int>(),
+                  config["PersistentLogMs"].as<int>(),
+                  config["SingleFileMax"].as<uint64_t>(),
+                  config["MsgBlockMax"].as<int>(),
+                  config["IndexMinInterval"].as<int>());
+
   server.run();
 
-
-  /*
-
-  std::string str = "hello";
-  {
-    Partition test(str, 0);
-    Buffer buff;
-    for (; i < 50; ++i) {
-      std::string message = "world id =" + std::to_string(i);
-      MqPacket msg{};
-      msg.command = MQ_COMMAND_DELIVERY;
-      msg.messageId = createMessageId();
-      msg.msgBytes = message.size();
-      msg.topicBytes = str.size();
-      serializationToBuffer(&msg, str, message, buff);
-    }
-    test.addToLog(&buff);
-  }
-
-  {
-    Partition test(str, 0);
-    Buffer buff;
-    for (; i < 100; ++i) {
-      std::string message = "world id =" + std::to_string(i);
-      MqPacket msg{};
-      msg.command = MQ_COMMAND_DELIVERY;
-      msg.messageId = createMessageId();
-      msg.msgBytes = message.size();
-      msg.topicBytes = str.size();
-      serializationToBuffer(&msg, str, message, buff);
-    }
-    test.addToLog(&buff);
-  }
-  {
-    Partition test(str, 0);
-    Buffer buff;
-    for (; i < 150; ++i) {
-      std::string message = "world id =" + std::to_string(i);
-      MqPacket msg{};
-      msg.command = MQ_COMMAND_DELIVERY;
-      msg.messageId = createMessageId();
-      msg.msgBytes = message.size();
-      msg.topicBytes = str.size();
-      serializationToBuffer(&msg, str, message, buff);
-    }
-    test.addToLog(&buff);
-  }
-  {
-    Partition test(str, 0);
-    Buffer buff;
-    for (; i < 200; ++i) {
-      std::string message = "world id =" + std::to_string(i);
-      MqPacket msg{};
-      msg.command = MQ_COMMAND_DELIVERY;
-      msg.messageId = createMessageId();
-      msg.msgBytes = message.size();
-      msg.topicBytes = str.size();
-      serializationToBuffer(&msg, str, message, buff);
-    }
-    test.addToLog(&buff);
-  }
-  Partition test(str, 0);
-  MqPacket info{};
-  info.command = MQ_COMMAND_PULL;
-  info.offset = test.getSize() - 10;
-  info.maxEnableBytes =  -1;
-  test.sendToConsumer(&info, nullptr);
-
-  std::cout<<"test's size = "<<test.getSize();
-   */
 
   return 0;
 

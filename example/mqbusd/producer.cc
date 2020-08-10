@@ -55,22 +55,34 @@ void Producer::sendInLoop(bool isRetry) {
       msg.msgCreateTime = Timestamp::now().getMicroSeconds();
       msg.topicBytes = data.second.first.size();
       msg.msgBytes = data.second.second.size();
+      int len = MqPacketLength(&msg);
+      if(buff.readableBytes()  + len  > 64*1024){
+        /// 内容太大了先发送
+        if(conne){
+          if(!m_begin_send_time){
+          m_begin_send_time = Timestamp::now().getMicroSeconds();
+          }
+          SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] to conne[%s]",front.second.first.c_str(),conne->getName().c_str());
+          assert(buff.readableBytes() < 64*1024);
+          conne->send(&buff);
+        }
+
+      }
       serializationToBuffer(&msg, data.second.first, data.second.second, buff);
       if (m_resend_set.find(msg.messageId) == m_resend_set.end()) {
         SKYLU_LOG_FMT_DEBUG(G_LOGGER, "queue in resendSet  topic-msg[%s|%s].",
                             data.second.first.c_str(),
-                            data.second.second.c_str());
+                           data.second.second.c_str());
         m_resend_set.insert({msg.messageId, {data.second}});
       }
       queue.pop_front();
     }
     if(conne){
-      static bool first = true;
-      if(first){
-        first = false;
-        SKYLU_LOG_FMT_ERROR(G_LOGGER,"this is no error! just for test . now : %d",Timestamp::now().getMicroSeconds());
+      if(!m_begin_send_time){
+        m_begin_send_time = Timestamp::now().getMicroSeconds();
       }
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] to conne[%s]",front.second.first.c_str(),conne->getName().c_str());
+      assert(buff.readableBytes() < 64*1024);
       conne->send(&buff);
     }
   }
@@ -92,6 +104,7 @@ bool Producer::send(bool isRetry) {
     SKYLU_LOG_ERROR(G_LOGGER)<<"current all connections is sick";
     return false;
   }
+  SKYLU_LOG_DEBUG(G_LOGGER)<<"send in loop";
   m_loop->runInLoop(std::bind(&Producer::sendInLoop,this,isRetry));
   return true;
 }
@@ -206,8 +219,7 @@ void Producer::connectToMqServer() {
   static int i = 0;
   for (auto it : m_mqserver_info) {
     /// 添加最新的Client FIXME  这里会有性能的问题
-    if (m_mqserver_clients.find(it.first) == m_mqserver_clients.end()
-        || !m_mqserver_clients[it.first]->getConnection()){
+    if (m_mqserver_clients.find(it.first) == m_mqserver_clients.end()){
       int flag = it.first.find(':');
       std::string host(it.first.substr(0, flag++));
       int port = atoi(it.first.substr(flag, it.first.size() - flag).c_str());

@@ -5,7 +5,6 @@
 const MqPacket * serializationToMqPacket(Buffer * buff){
   const auto * msg = reinterpret_cast<const MqPacket * >(buff->curRead());
   if(buff->readableBytes() < MqPacketLength(msg)){
-    buff->resetAll();
     return nullptr;  ///可能一次性写入的量太大了导致需要分段
   }
   if(!checkMqPacketEnd(msg)){

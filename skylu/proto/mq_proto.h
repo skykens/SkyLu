@@ -26,7 +26,8 @@ enum MqProto{
 enum ErrCode{
   SUCCESSFUL = 0,
   UNKNOW_CONSUMER,  /// 身份未注册 or 在服务端的身份过期
-  UNKNOW_TOPIC
+  UNKNOW_TOPIC,
+  OFFSET_TOO_LARGET
 
 
 };

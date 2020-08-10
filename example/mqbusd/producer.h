@@ -43,6 +43,11 @@ public:
 
   }
   int sendCount() const{return count;}
+  /**
+   * 开始发送的时间
+   * @return
+   */
+  int64_t  startSendTime(){return m_begin_send_time;}
 
 private:
   static Producer::ptr createProducer(const std::vector<Address::ptr> & dir_addrs,const std::string &name);
@@ -65,7 +70,7 @@ private:
 
 
 private:
-  const int kReSendTimerWithMs = 500;
+  const int kReSendTimerWithMs = 2000;
   Mutex m_mutex;
   std::unique_ptr<Thread> m_thread;
   ProduceQueue m_send_queue;  ///跨线程的 需要保护
@@ -78,6 +83,7 @@ private:
   int count = 0;
   consistent_hash_map<> m_hashHost;
   std::unordered_map<std::string,TcpConnection::ptr > m_vaild_conne;
+  int64_t  m_begin_send_time = 0;
 };
 
 class ProducerWrap{
@@ -96,6 +102,7 @@ public:
   void wait(){produce->wait();}
   int sendCount(){return produce->sendCount();}
   std::string getName()const {return produce->getName();}
+  int64_t  startSendTime(){return produce->startSendTime();}
 
 
 

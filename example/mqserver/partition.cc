@@ -3,9 +3,12 @@
 //
 
 #include "partition.h"
-Partition::Partition(const std::string &topic, int id)
-    :m_prefix(topic +"-"+ std::to_string(id) + "/"),m_lastLogMmap(nullptr),m_lastLogFileLength(0),m_lastOffsetIndexInFile(0),m_size(0)
-      ,m_topic(topic),m_id(id),m_isDirty(false)
+Partition::Partition(const std::string &topic, int id,
+                     uint64_t singleFileMaxSize, int msgblockMaxSize,
+                     int indexMinInterval)
+:m_prefix(topic +"-"+ std::to_string(id) + "/"),m_lastLogMmap(nullptr),m_lastLogFileLength(0),m_lastOffsetIndexInFile(0),m_size(0)
+,m_topic(topic),m_id(id),m_isDirty(false),ksingleFileMaxSize(singleFileMaxSize)
+,kMsgblockMaxSize(msgblockMaxSize),kIndexMinInterval(indexMinInterval)
 {
   if(!File::isExits(topic+ "-" + std::to_string(id))){
     /// 文件夹不存在 创建,同时创建index 索引文件
@@ -52,7 +55,7 @@ void Partition::addToLog(Buffer *msg) {
     i +=len;
     m_size ++;
     uint64_t in_file_offset = m_size - m_indexs.rbegin()->first;
-    if(len > kMsgblockMaxSize || in_file_offset > m_lastOffsetIndexInFile + kIndexMinInteral
+    if(len > kMsgblockMaxSize || in_file_offset > m_lastOffsetIndexInFile + kIndexMinInterval
         || in_file_offset == 0){
       m_lastOffsetIndexInFile = in_file_offset;
       m_indexs.rbegin()->second.insert({in_file_offset, position});
@@ -124,6 +127,12 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
     ///拉取的offset 太超前了
     SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] pull offset = %d > partition's[%s] size[%d]",
                        conne->getName().c_str(),info->offset,m_topic.c_str(),m_size);
+    Buffer buff;
+    auto * msg = const_cast<MqPacket *>(info);
+    msg->retCode = ErrCode::OFFSET_TOO_LARGET;
+    msg->topicBytes = m_topic.size();
+    serializationToBuffer(msg,m_topic,buff);
+    conne->send(&buff);
     return 0;
   }
   auto it = m_indexs.lower_bound(offset) ; /// 起点文件

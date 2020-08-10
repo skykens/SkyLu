@@ -28,6 +28,7 @@ public:
   void enableRetry(){m_isRetry = true;}
 
   const std::string & getName()const {return m_name;}
+  Connector::State getConnectorState()const {return m_connector->getState();}
 
   void setConnectionCallback(const TcpConnection::ConnectionCallback& cb){m_connection_callback = cb;}
   void setMessageCallback(const TcpConnection::MessageCallback & cb){m_message_callback = cb;}

@@ -27,7 +27,7 @@ struct CommitInfo{
 
   void setOffset(const std::string & conneName,uint64_t offset){
     if(info.find(conneName) != info.end()){
-      if(info[conneName] >= offset){
+      if(info[conneName] > offset){
         SKYLU_LOG_FMT_WARN(G_LOGGER,"set offset[%d] is small then local commit[%d]",offset,info[conneName]);
 
       }
@@ -113,6 +113,7 @@ private:
   void onConnectionToMqServer(const TcpConnection::ptr &conne) override;
   void onMessageFromMqServer(const TcpConnection::ptr &conne, Buffer *buff) override;
   void subscribeInLoop(const TcpConnection::ptr &conne);
+  void subscribeInLoop(const std::string& topic,const TcpConnection::ptr &conne);
   /**
    * 当获取到了Broker的Info根据本地的订阅信息来决定连接到哪台broker上
    */

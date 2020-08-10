@@ -24,14 +24,17 @@
 
 using namespace skylu;
 class MqServer :Nocopyable{
-  const int kPersistentTimeMs = 5000;
-  const int kPersistentCommmitTimeMs  = 500;
   typedef std::unique_ptr<TcpClient> TcpClientPtr;
 public:
   MqServer(EventLoop * loop
            ,const Address::ptr& local_addr
            ,std::vector<Address::ptr>& peerdirs_addr
-           ,const std::string & name);
+           ,const std::string & name
+           ,int PersistentCommitMs = 500
+           ,int PersistentLogMs = 5000
+           ,uint64_t singleFileMax = 64
+           ,int MsgBlockMax = 4096
+           ,int IndexMinInterval = 10);
   void run();
 
   ~MqServer() = default;
@@ -79,7 +82,6 @@ private:
 
 
 
-
   const std::string m_name;
   EventLoop * m_loop;
   TcpServer m_server;
@@ -90,6 +92,11 @@ private:
   std::unordered_set<uint64_t> m_messageId_set;
   CommitPartition::ptr m_commit_partition;
 
+  const int kPersistentTimeMs;
+  const int kPersistentCommmitTimeMs;
+  const uint64_t ksingleFileMaxSize; ///
+  const int kMsgblockMaxSize;  ///设置单个消息超过多大的时候稀疏索引 +  1
+  const int  kIndexMinInterval;
 
 
 

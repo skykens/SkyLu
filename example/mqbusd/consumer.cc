@@ -40,7 +40,7 @@ void Consumer::onMessageFromMqServer(const TcpConnection::ptr &conne,
       break;
     }
   }
-  if(hasPull && m_pull_cb){
+  if(hasPull && !m_recv_messages.empty() && m_pull_cb){
     m_pull_cb(m_recv_messages);
   }
 
@@ -131,6 +131,7 @@ void Consumer::commit() {
 }
 void Consumer::pullInLoop() {
 
+  Buffer buff;
   MqPacket msg{};
   msg.command = MQ_COMMAND_PULL;
   msg.maxEnableBytes = m_maxEnableBytes;
@@ -138,33 +139,27 @@ void Consumer::pullInLoop() {
   msg.consumerGroupId = m_groupId;
   msg.offset = 0;
 
-  if(!m_commit_offset.empty()){
-    for(const auto & it: m_commit_offset){
-      if(m_vaild_topic_conne.find(it.first) == m_vaild_topic_conne.end()){
-        SKYLU_LOG_FMT_ERROR(G_LOGGER,"topic[%s] conne is invaild.",it.first.c_str());
-      }else{
-        Buffer buff;
-        const auto & conne = m_vaild_topic_conne[it.first];
-        msg.topicBytes = it.first.size();
-        msg.offset = it.second.getOffset(conne->getName());
-        serializationToBuffer(&msg,it.first,buff);
-        conne->send(&buff);
-        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull topic[%s|offset: %d]",it.first.c_str(),msg.offset);
-      }
 
-    }
-  }else{
-    for(const auto & i : m_mqserver_clients){
-      Buffer buff;
+  for(const auto & it : m_vaild_topic_conne){
+    if(m_commit_offset.find(it.first) != m_commit_offset.end()){
+      ///本地有offset
+      const auto & conne = it.second;
+      msg.topicBytes = it.first.size();
+      msg.offset = m_commit_offset[it.first].getOffset(conne->getName());
+      serializationToBuffer(&msg,it.first,buff);
+      conne->send(&buff);
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull topic[%s|offset: %d]",it.first.c_str(),msg.offset);
+    }else{
+
       serializationToBuffer(&msg,buff);
-      const auto & conne = i.second->getConnection();
-      if(conne){
-        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull message to conne[%s]",conne->getName().c_str());
-        conne->send(&buff);
-      }
-
+      const auto & conne = it.second;
+      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull message to conne[%s]",conne->getName().c_str());
+      conne->send(&buff);
     }
   }
+
+
+
 }
 
 void Consumer::onConnectionToMqServer(const TcpConnection::ptr &conne) {
@@ -201,11 +196,17 @@ void Consumer::handleSubscribe(const MqPacket *msg,const TcpConnection::ptr &con
 }
 void Consumer::handlePull(const MqPacket *msg,const TcpConnection::ptr &conne) {
 
-  if(msg->retCode == ErrCode::UNKNOW_CONSUMER){
+  if(msg->retCode == ErrCode::OFFSET_TOO_LARGET){
+    /// 该分区已经被消费干净了
+    std::string topic;
+    getTopic(msg,topic);
+    m_commit_offset[topic].setOffset(conne->getName(),msg->offset);
+
+  }
+  else if(msg->retCode == ErrCode::UNKNOW_CONSUMER){
     SKYLU_LOG_WARN(G_LOGGER)<<"subscribe timeout . repeat send subscribe";
     subscribeInLoop(conne);
-  }
-  if(msg->retCode == ErrCode::SUCCESSFUL){
+  }else if(msg->retCode == ErrCode::SUCCESSFUL){
 
     std::string topic,message;
     getTopicAndMessage(msg,topic,message);
@@ -236,7 +237,7 @@ void Consumer::connectToMqServer() {
   for( auto &  topic : m_topic) {
     ///topic.first = topic, second = host
 
-    for (auto it : m_mqserver_info) {
+    for (auto it : m_mqserver_info_tmp) {
       /// it.first = host:port , second = std::unorder_map<topic,num>
       /// 添加最新的Client FIXME  这里会有性能的问题
       if (it.second.find(topic.first) != it.second.end()){  ///找到有相关主题的broker 进行连接
@@ -264,6 +265,11 @@ void Consumer::connectToMqServer() {
                             std::placeholders::_1, std::placeholders::_2));
               m_mqserver_clients[it.first]->setCloseCallback(std::bind(&Consumer::removeInvaildConnection,
                                                                        this,std::placeholders::_1));
+        }else if(m_mqserver_clients[it.first]->getConnectorState() == Connector::kConnected
+                   && m_vaild_topic_conne.find(topic.first) == m_vaild_topic_conne.end()){
+          assert(m_vaild_topic_conne.find(topic.first) == m_vaild_topic_conne.end());
+          topic.second = it.first;
+          subscribeInLoop(topic.first,m_mqserver_clients[it.first]->getConnection());
         }
       }
     }
@@ -285,5 +291,19 @@ void Consumer::removeInvaildConnection(const TcpConnection::ptr &conne)  {
   }
 
 
+
+}
+void Consumer::subscribeInLoop(const std::string& topic,
+                               const TcpConnection::ptr &conne) {
+  Buffer buff;
+      MqPacket msg;
+      msg.msgCreateTime = Timestamp::now().getMicroSeconds();
+      msg.command = MQ_COMMAND_SUBSCRIBE;
+      msg.topicBytes = topic.size();
+      msg.consumerGroupId = m_groupId;
+      SKYLU_LOG_FMT_INFO(G_LOGGER,"describe topic[%s] to conne[%s]",topic.c_str(),conne->getName().c_str());
+
+  serializationToBuffer(&msg,topic,buff);
+  conne->send(&buff);
 
 }

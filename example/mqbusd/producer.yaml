@@ -1,0 +1,27 @@
+Type: producer
+DirServer:
+  - addr: 127.0.0.1
+    port: 6001
+  - addr: 127.0.0.1
+    port: 6002
+###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
+LogLevel: FATAL
+Producer:
+  - name: producer1
+    topic:
+      - hello0
+      - hello1
+      - hello2
+    msgLength: 1024  # byte
+    totalLength: 64  # k
+  - name: producer2
+    topic:
+      - hello3
+      - hello4
+    msgLength: 1024  # byte
+    totalLength: 64  # k
+
+
+
+
+

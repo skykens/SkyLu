@@ -24,8 +24,6 @@
 
 using namespace  skylu;
 class MqBusd : Nocopyable{
-  typedef std::unique_ptr<TcpClient> TcpClientPtr;
-  static const int kSendRequesetToDirSecond = 5;  /// 获取Dir注册表的间隔时间（单位：s）
 public:
   typedef std::function<void(MqPacket *)> MqBusdMessageCallback;
   typedef TcpConnection::ConnectionCallback MqBusdConnectionCallback;
@@ -45,6 +43,8 @@ public:
 
 
 protected:
+    typedef std::unique_ptr<TcpClient> TcpClientPtr;
+    static const int kSendRequesetToDirSecond = 5;  /// 获取Dir注册表的间隔时间（单位：s）
   void onMessageFromDirServer(const TcpConnection::ptr & conne,Buffer * buff);
   void onNewDirServerConnection(const TcpConnection::ptr & conne);
 
@@ -53,7 +53,7 @@ protected:
   virtual void connectToMqServer();
 
   void updateMqSeverConfWithMs();
-  void updateMqServerClients();
+  virtual void updateMqServerClients();
   void connect();
   void init(const std::vector<Address::ptr> &dir_addrs);
 
@@ -65,7 +65,7 @@ protected:
 
   std::vector<TcpClientPtr> m_dir_clients;  ///连接到dir上的clients 使用这个来发送前需要判断connection != nullptr
 
-  std::unordered_map<std::string,TcpClientPtr> m_mqserver_clients; /// 连接到mqserver上的clients
+  std::unordered_map<std::string,TcpClientPtr> m_mqserver_clients; /// 连接到mqserver上的clients   host:port - TcpClientPtr
 
   Timerid m_updateMqServerConfTimer;   ///获取Dir注册表的定时器
   bool m_isVaild;

@@ -8,22 +8,30 @@
 #include <string>
 MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
                    std::vector<Address::ptr> &peerdirs_addr,
-                   const std::string &name)
+                   const std::string &name, int PersistentCommitMs,
+                   int PersistentLogMs, uint64_t singleFileMax, int MsgBlockMax,
+                   int IndexMinInterval)
+
     :m_name(name)
     ,m_loop(loop)
     ,m_server(loop,local_addr,name + "#TcpServer#")
-      ,m_dirpeer_clients(peerdirs_addr.size())
-    ,m_local_addr(local_addr){
+    ,m_dirpeer_clients(peerdirs_addr.size())
+    ,m_local_addr(local_addr)
+    ,kPersistentTimeMs(PersistentLogMs)
+    ,kPersistentCommmitTimeMs(PersistentCommitMs)
+    ,ksingleFileMaxSize(singleFileMax*1024)
+    ,kMsgblockMaxSize(MsgBlockMax)
+    ,kIndexMinInterval(IndexMinInterval){
 
   Signal::hook(SIGPIPE,[](){});
   for(size_t i = 0 ; i < peerdirs_addr.size(); ++i){
     m_dirpeer_clients[i].reset(new TcpClient(m_loop
-                                             ,peerdirs_addr[i]
-                                             ,"#DirPeerClientID #" + std::to_string(i)));
+        ,peerdirs_addr[i]
+        ,"#DirPeerClientID #" + std::to_string(i)));
     m_dirpeer_clients[i]->enableRetry();
     m_dirpeer_clients[i]->setConnectionCallback(std::bind(&MqServer::sendRegisterWithMs,this,std::placeholders::_1));
     m_dirpeer_clients[i]->setMessageCallback(std::bind(&MqServer::onMessageFromDirPeer
-                                                       ,this,std::placeholders::_1,std::placeholders::_2));
+        ,this,std::placeholders::_1,std::placeholders::_2));
 
 
   }
@@ -42,7 +50,7 @@ MqServer::MqServer(EventLoop *loop, const Address::ptr &local_addr,
                    std::bind(&MqServer::sendKeepAliveWithMs, this));
 
   m_server.setMessageCallback(std::bind(&MqServer::onMessageFromMqBusd
-                                      ,this,std::placeholders::_1,std::placeholders::_2));
+      ,this,std::placeholders::_1,std::placeholders::_2));
   m_server.setCloseCallback(std::bind(&MqServer::removeInvaildConnection,
                                       this,std::placeholders::_1)); ///移除无效连接
 }
@@ -60,13 +68,13 @@ void MqServer::init() {
         std::string dirname(dp->d_name);
         int index = dirname.find('-');
         if(index == -1){
-          SKYLU_LOG_FMT_ERROR(G_LOGGER,"error dir[%s] exist. ",dirname.c_str());
+          SKYLU_LOG_FMT_WARN(G_LOGGER,"error dir[%s] exist. ",dirname.c_str());
           continue ;
         }
         int id = std::stoi(dirname.substr(index + 1));
         std::string topicName = dirname.substr(0,index);
         SKYLU_LOG_FMT_DEBUG(G_LOGGER,"load partition[%s-%d]",topicName.c_str(),id);
-        m_partition[topicName].reset(new Partition(topicName,id));
+        m_partition[topicName].reset(new Partition(topicName,id,ksingleFileMaxSize,kMsgblockMaxSize,kIndexMinInterval));
       }
     }
 
@@ -159,8 +167,6 @@ void MqServer::onMessageFromMqBusd(const TcpConnection::ptr &conne,
   while(buff->readableBytes()>sizeof(MqPacket)) {
     const MqPacket *msg = serializationToMqPacket(buff); ///这里面会更新
     if(!msg){
-      ///FIXME  目前发现的原因是生产者发送的数据太大了，导致需要分段接受 。 目前的解决方法是先shutdown,降低重发队列的大小 之后再重新建立连接发送》
-      conne->shutdown();
       SKYLU_LOG_FMT_WARN(G_LOGGER,"conne[%s] send too larget packet size[%d]",conne->getName().c_str(),buff->getWPos());
       return ;
     }
@@ -214,7 +220,7 @@ void MqServer::handleDeliver(const MqPacket *msg) {
     commd->command = MQ_COMMAND_PULL;
     serializationToBuffer(msg,topic,message,tmp);
     if(m_partition.find(topic) == m_partition.end()){
-      m_partition[topic].reset(new Partition(topic,0));
+      m_partition[topic].reset(new Partition(topic,0,ksingleFileMaxSize,kMsgblockMaxSize,kIndexMinInterval));
     }
     m_partition[topic]->addToLog(&tmp);
     SKYLU_LOG_FMT_INFO(G_LOGGER,"recv msg[%d] topic[%s] message[%s]",msg->messageId,topic.c_str(),message.c_str());
@@ -261,18 +267,19 @@ void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
     return ;
   }
 
+  SKYLU_LOG_FMT_DEBUG(G_LOGGER,"conne[%s] subscribe %d topic",conne->getName().c_str(),m_consumer[conne].size());
   if(msg->topicBytes == 0) {
-
     for (const auto &topic : m_consumer[conne]) {
       if (msg->offset == 0) {
-        auto * info = const_cast<MqPacket *>(msg);
-        info->offset =
-            m_commit_partition->getOffset(info->consumerGroupId, topic);
+        MqPacket info = *msg;
+        info.offset =
+            m_commit_partition->getOffset(info.consumerGroupId, topic);
         assert(m_partition.find(topic) != m_partition.end());
-        m_partition[topic]->sendToConsumer(info, conne);
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] offset[%d] to conne[%s]",topic.c_str(),info.offset,conne->getName().c_str());
+        m_partition[topic]->sendToConsumer(&info, conne);
 
       } else {
-
+        SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] offset[%d] to conne[%s]",topic.c_str(),msg->offset,conne->getName().c_str());
         m_partition[topic]->sendToConsumer(msg, conne);
       }
     }
@@ -280,10 +287,11 @@ void MqServer::handlePull(const TcpConnection::ptr& conne,const MqPacket *msg) {
     /// 处理单个请求主题具体offset的情况
     std::string topic;
     getTopic(msg,topic);
-    if(msg->offset < 0){
+    if(msg->offset == 0){
       auto * info = const_cast<MqPacket *>(msg);
       info->offset = m_commit_partition->getOffset(info->consumerGroupId,topic);
     }
+    SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send topic[%s] offset[%d] to conne[%s]",topic.c_str(),msg->offset,conne->getName().c_str());
     m_partition[topic]->sendToConsumer(msg,conne);
 
   }

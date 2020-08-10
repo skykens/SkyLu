@@ -1,0 +1,21 @@
+
+Name: consumer
+##必填 指定启动的对象 (小写)
+Type: consumer
+DirServer:
+  - addr: 127.0.0.1
+    port: 6001
+  - addr: 127.0.0.1
+    port: 6002
+###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
+LogLevel: DEBUG
+GroupId: 1
+PullIntervalMs: 500
+
+Topic:
+  - hello0
+  - hello1
+  - hello2
+  - hello3
+  - hello4
+  - hello5

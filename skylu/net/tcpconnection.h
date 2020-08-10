@@ -31,7 +31,6 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         typedef std::function<void(const TcpConnection::ptr& ,size_t)> HighWaterMarkCallback;
         TcpConnection(EventLoop * loop,const Socket::ptr& socket,std::string name);
         ~TcpConnection(){
-          SKYLU_LOG_FMT_DEBUG(SKYLU_LOG_NAME("TcpConnection"),"delete connection [%s|%d]",m_name.c_str(),m_socket->getSocket());
         }
 
         /**

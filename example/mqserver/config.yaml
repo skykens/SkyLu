@@ -1,0 +1,25 @@
+Name: MQBroker
+DirServer:
+  - addr: 127.0.0.1
+    port: 6001
+  - addr: 127.0.0.1
+    port: 6002
+LocalAddress: 9.134.125.208
+Port: 3015
+###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
+LogLevel: DEBUG
+
+## 及持久化日志的间隔时间
+PersistentLogMs: 5000
+
+## 持久化提交的间隔时间
+PersistentCommitMs: 500
+
+## 单位： K
+SingleFileMax: 64
+
+## 单位： 字节
+MsgBlockMax: 4096
+
+## 索引间的最小间隔
+IndexMinInterval: 10
