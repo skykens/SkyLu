@@ -1,6 +1,5 @@
-
 Name: consumer
-##必填 指定启动的对象 (小写)
+## 指定启动的对象 (小写)
 ##consumer: 消费者
 ##producer: 生产者
 ##producer-console: 控制台版本的生产者
@@ -12,12 +11,15 @@ DirServer:
     port: 6002
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
 LogLevel: DEBUG
+##消费者组ID ，用来唯一区别提交offset，如果同一个组则共享offset。 不设置则默认为IP+端口进行哈希
 GroupId: 2
+###每次拉取的间隔时间，单位：Ms
 PullIntervalMs: 500
 
-##不设置表示不限流
+##不设置 表示不限流 , 单位： 字节
 MaxEnbaleBytes: 65536
 
+###订阅的主题
 Topic:
   - hello0
   - hello1

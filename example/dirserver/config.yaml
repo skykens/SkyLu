@@ -2,9 +2,10 @@ Name: Dir1
 LocalAddress: 127.0.0.1
 Port: 6001
 
-##j检测broker的心跳间隔（单位： Ms）
+##检测broker的心跳间隔（单位： Ms）
 CheckKeepAlive: 5000
 LogLevel: DEBUG
+##是否守护进程启动，如果是的话需要指定全局日志的地址。
 Daemon: YES
 ##全局日志的存放地址
 GlobalLog: dirserver.log

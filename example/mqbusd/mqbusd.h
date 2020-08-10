@@ -22,7 +22,11 @@
 #include <skylu/proto/dirserver_proto.h>
 #include <skylu/proto/mq_proto.h>
 
+
 using namespace  skylu;
+/**
+ * 将Producer和Consumer需要和dirserver交互的内容抽象出来实现这个类
+ */
 class MqBusd : Nocopyable{
 public:
   typedef std::function<void(MqPacket *)> MqBusdMessageCallback;

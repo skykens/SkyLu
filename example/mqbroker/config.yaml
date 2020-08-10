@@ -1,9 +1,11 @@
 Name: MQBroker
+# DirServer服务器的地址端口
 DirServer:
   - addr: 127.0.0.1
     port: 6001
   - addr: 127.0.0.1
     port: 6002
+# 本地的地址和端口（需要输入真实IP）
 LocalAddress: 9.134.125.208
 Port: 3015
 
@@ -16,7 +18,7 @@ PersistentCommitMs: 500
 ## 单位： K
 SingleFileMax: 64
 
-## 单位： 字节
+##每次最大写入多少自己记录一次索引 单位： 字节
 MsgBlockMax: 4096
 
 ## 索引间的最小间隔
@@ -25,6 +27,9 @@ IndexMinInterval: 10
 CommitLog: commit.log
 ##全局日志
 GlobalLog: global.log
+
+
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
 LogLevel: ERROR
+##启动方式： 是否为守护进程，如果守护进程启动的话需要指定GlobalLog地址
 Daemon: NO

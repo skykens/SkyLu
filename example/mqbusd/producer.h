@@ -18,6 +18,9 @@
 using namespace skylu;
 class ProducerWrap;
 
+/**
+ * 这个类是不能被直接创建的，如果直接创建的话需要每次调用stop之后才能安全的释放，否则线程中的eventloop无法停止。放在析构函数里面也不行,析构要回收线程
+ */
 class Producer :protected MqBusd,public std::enable_shared_from_this<Producer>{
   const int kVirtualNodeNum = 50;
 
@@ -29,11 +32,35 @@ public:
   typedef std::function<void(const IdAndTopicMessagePair &)> SendOkCallbck;
   typedef std::shared_ptr<Producer> ptr;
   ~Producer() override;
+  /**
+   * 将本地队列的消息发送出去
+   * @param isRetry 发送失败是否重试
+   * @return
+   */
   bool send(bool isRetry = false);
+  /**
+   * 将对应的主题消息放到发送队列里
+   * @param topic
+   * @param message
+   */
   void put(const std::string& topic,const std::string& message);
+  /**
+   * 发送之后的回调
+   */
   void setSendCallback(const SendCallback &cb){m_send_cb = cb;}
+
+  /**
+   * 消息成功投递后的回调
+   * @param cb
+   */
   void setSendOkCallback(const SendOkCallbck &cb){m_send_ok_cb = cb;}
+  /**
+   * 线程启动。
+   */
   void start();
+  /**
+   * 阻塞的等待消息发送完成
+   */
   void wait(){
     {
       Mutex::Lock lock(m_mutex);
@@ -42,9 +69,9 @@ public:
     }
 
   }
-  int sendCount() const{return count;}
+
   /**
-   * 开始发送的时间
+   * 开始发送消息的时间
    * @return
    */
   int64_t  startSendTime(){return m_begin_send_time;}
@@ -86,6 +113,9 @@ private:
   int64_t  m_begin_send_time = 0;
 };
 
+/**
+ * 这个类用来包裹Producer，当他析构的时候手动会调用produce->stop来停止eventloop，之后线程就能安全的释放
+ */
 class ProducerWrap{
 public:
   ProducerWrap(const std::vector<Address::ptr> & dir_addrs,const std::string &name){
@@ -100,7 +130,6 @@ public:
   void setSendOkCallback(const Producer::SendOkCallbck &cb){produce->setSendOkCallback(cb);}
   void start(){produce->start();}
   void wait(){produce->wait();}
-  int sendCount(){return produce->sendCount();}
   std::string getName()const {return produce->getName();}
   int64_t  startSendTime(){return produce->startSendTime();}
 
