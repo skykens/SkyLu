@@ -10,14 +10,15 @@ DirServer:
   - addr: 127.0.0.1
     port: 6002
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
-LogLevel: DEBUG
+LogLevel: ERROR
 ##消费者组ID ，用来唯一区别提交offset，如果同一个组则共享offset。 不设置则默认为IP+端口进行哈希
-GroupId: 2
+GroupId: 1
 ###每次拉取的间隔时间，单位：Ms
-PullIntervalMs: 500
+PullIntervalMs: 1000
 
-##不设置 表示不限流 , 单位： 字节
-MaxEnbaleBytes: 65536
+##不设置 表示不限流 , 单位： k
+MaxEnableBytes: 1024
+EchoMessage: NO  ##打印消息
 
 ###订阅的主题
 Topic:

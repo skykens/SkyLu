@@ -18,7 +18,6 @@ void Producer::sendInLoop(bool isRetry) {
   m_loop->assertInLoopThread();
   Buffer buff;
 
-  ProduceQueue queue;
   {
     Mutex::Lock  lock(m_mutex);
     queue = m_send_queue;
@@ -29,8 +28,12 @@ void Producer::sendInLoop(bool isRetry) {
     SKYLU_LOG_FMT_ERROR(G_LOGGER,"all server[%d] m_mqserver_info [%d] is sick.",m_mqserver_clients.size(),m_mqserver_info.size());
     if(m_send_cb)
        m_send_cb(false,queue);
-    if(!isRetry)
+    if(!isRetry){
+      Mutex::Lock lock(m_mutex);
+      queue.clear();
       return ; ///如果可以重试的话就将msg放到重发队列中
+
+    }
   }
   MurMurHash hash;
   while(!queue.empty()) {
@@ -56,6 +59,7 @@ void Producer::sendInLoop(bool isRetry) {
       msg.topicBytes = data.second.first.size();
       msg.msgBytes = data.second.second.size();
       int len = MqPacketLength(&msg);
+      m_send_count++;
       if(buff.readableBytes()  + len  > 64*1024){
         /// 内容太大了先发送
         if(conne){
@@ -86,6 +90,8 @@ void Producer::sendInLoop(bool isRetry) {
       conne->send(&buff);
     }
   }
+  Mutex::Lock lock(m_mutex);
+  queue.clear();
 
 
 
@@ -184,6 +190,7 @@ void Producer::handleDelivery(const MqPacket * msg) {
   ///  assert(m_resend_set.find(msg->messageId) != m_resend_set.end());
   /// FIXME 可能会有一个现象:连续收到两个ACK（第一个是之前超时的，第二个是定时器重发拿到的,当第二个来的时候set里面已经没有当前的MessageId了
   if (m_resend_set.find(msg->messageId) != m_resend_set.end()) {
+    m_deliver_successful_count++;
     if (m_send_ok_cb) {
       m_send_ok_cb({msg->messageId, m_resend_set[msg->messageId]});
     }

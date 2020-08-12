@@ -136,7 +136,10 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
     return 0;
   }
   auto it = m_indexs.lower_bound(offset) ; /// 起点文件
-  if(it->first != offset){
+  if(it==m_indexs.end()){
+    --it;
+  }
+  if(it->first != offset && it != m_indexs.begin()){
     --it;
   }
   std::string filename = m_prefix+std::to_string(it->first) + ".log";
@@ -149,6 +152,11 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
     buff = m_lastLogMmap;
   }else{
     fd = ::open(filename.c_str(),O_RDONLY);
+    if(fd<0){
+      SKYLU_LOG_FMT_ERROR(G_LOGGER,"open[%s] errno = %d,strerrno = %s",filename.c_str(),errno,strerror(errno));
+      return 0;
+
+    }
     buff = static_cast<char * > (mmap(nullptr,ksingleFileMaxSize,PROT_READ, MAP_PRIVATE, fd,0));
     if(buff == (void *)-1){
       SKYLU_LOG_FMT_ERROR(G_LOGGER,"mmap errno = %d,strerrno = %s",errno,strerror(errno));
@@ -224,19 +232,20 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
       eofPosition =
           i <= maxEnableBytes ? eofPosition + length : eofPosition;
   }
-  int socket = conne->getSocketFd();
   assert(eofPosition > position);
   SKYLU_LOG_FMT_DEBUG(G_LOGGER,"send msg from %s len = %d,position = %d, eofPosition = %d",filename.c_str(),eofPosition-position,position,eofPosition);
-  int res = sendfile(socket,fd,static_cast<off_t*>(&position),eofPosition - position);
-  if(res < 0){
-    SKYLU_LOG_FMT_ERROR(G_LOGGER,"sendfile ret = %d,errno = %d,strerrno = %s",res,errno,strerror(errno));
+  if(m_lastLogFile->getFd() != fd){
+    close(fd);
   }
+
+  Buffer mmbuffer;
+  mmbuffer.append(buff+position,eofPosition-position);
+  conne->send(&mmbuffer);
+  ///TODO 理想状态还是用零拷贝发送
+ // conne->sendFile(filename,static_cast<off_t>(position),eofPosition - position);
 
   if(buff != m_lastLogMmap){
      munmap(buff,ksingleFileMaxSize);
-   }
-   if(m_lastLogFile->getFd() != fd){
-     close(fd);
    }
   return count;
 

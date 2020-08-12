@@ -64,7 +64,7 @@ public:
   void wait(){
     {
       Mutex::Lock lock(m_mutex);
-      while(!m_send_queue.empty() || !m_resend_set.empty())
+      while(!queue.empty()||!m_send_queue.empty() || !m_resend_set.empty())
         m_empty_queueAndsResend.wait();
     }
 
@@ -75,6 +75,8 @@ public:
    * @return
    */
   int64_t  startSendTime(){return m_begin_send_time;}
+  uint64_t getSendCount()const {return m_send_count;}
+  uint64_t getDeliverSuccessfulCount()const {return m_deliver_successful_count;}
 
 private:
   static Producer::ptr createProducer(const std::vector<Address::ptr> & dir_addrs,const std::string &name);
@@ -101,16 +103,18 @@ private:
   Mutex m_mutex;
   std::unique_ptr<Thread> m_thread;
   ProduceQueue m_send_queue;  ///跨线程的 需要保护
-  std::map<int,TopicAndMessage> m_resend_set;
+  ProduceQueue queue;
+  std::map<uint64_t,TopicAndMessage> m_resend_set;
   SendCallback  m_send_cb;
   SendOkCallbck  m_send_ok_cb;
   const std::vector<Address::ptr>  m_dir_addrs;
   bool m_isInit;  ///初始化的时候置位
   Condition m_empty_queueAndsResend;
-  int count = 0;
   consistent_hash_map<> m_hashHost;
   std::unordered_map<std::string,TcpConnection::ptr > m_vaild_conne;
   int64_t  m_begin_send_time = 0;
+  uint64_t  m_send_count = 0; ///计算总共发送数量
+  uint64_t  m_deliver_successful_count = 0;///投递成功数量
 };
 
 /**
@@ -133,6 +137,8 @@ public:
   std::string getName()const {return produce->getName();}
   int64_t  startSendTime(){return produce->startSendTime();}
 
+  uint64_t getSendCount()const {return produce->getSendCount();}
+  uint64_t getDeliverSuccessfulCount()const {return produce->getDeliverSuccessfulCount();}
 
 
 

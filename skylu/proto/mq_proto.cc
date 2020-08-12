@@ -4,11 +4,17 @@
 #include "mq_proto.h"
 const MqPacket * serializationToMqPacket(Buffer * buff){
   const auto * msg = reinterpret_cast<const MqPacket * >(buff->curRead());
+  if(msg->command >MQ_COMMAND_HEARTBEAT ){
+    ////不存在的包 清空缓冲区
+
+    buff->resetAll();
+    return nullptr;
+  }
   if(buff->readableBytes() < MqPacketLength(msg)){
     return nullptr;  ///可能一次性写入的量太大了导致需要分段
   }
   if(!checkMqPacketEnd(msg)){
-    buff->updatePos(MqPacketLength(msg));
+    buff->resetAll();
     return nullptr;
   }
   buff->updatePos(MqPacketLength(msg));

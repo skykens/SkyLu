@@ -58,7 +58,7 @@ void Socket::initOption(){
         setoption(TCP_NODELAY,(void*)&ret,sizeof(ret),IPPROTO_TCP);
 
     }
-    
+
 }
 
 
@@ -78,11 +78,18 @@ void Socket::newSocket(){
 Socket::ptr Socket::accept(){
     Socket::ptr val(new Socket(m_family,m_type,m_protocol));
     int fd = ::accept(m_fd,nullptr ,nullptr);
-    if(val->init(fd))
+
+  int flags = fcntl(m_fd,F_GETFL,0);
+  if(!(flags & O_NONBLOCK)){
+    fcntl(m_fd,F_SETFL,flags | O_NONBLOCK);
+
+  }
+  if(val->init(fd))
         return val;
     SKYLU_LOG_ERROR(G_LOGGER)<<"accept ("<<fd << ")  error ="
         << errno <<" strerr ="<<strerror(errno);
-    return nullptr;
+
+  return nullptr;
 }
 
 bool Socket::bind(const Address::ptr addr){
@@ -139,6 +146,11 @@ bool Socket::connect(const Address::ptr addr,uint64_t timeoutMS){
             <<"  strerror="<<strerror(errno);
         return false;
     }
+  int flags = fcntl(m_fd,F_GETFL,0);
+  if(!(flags & O_NONBLOCK)){
+    fcntl(m_fd,F_SETFL,flags | O_NONBLOCK);
+
+  }
 
     getLocalAddress();
     getRemoteAddress();
@@ -200,7 +212,7 @@ void Socket::setNonblock(){
 
         }
     }
-    Fdmanager::FdMagr::GetInstance()->get(m_fd,true)->setNonblock();
+
 }
 
 
@@ -326,7 +338,8 @@ ssize_t Socket::recvFrom(void *buff,size_t size,Address::ptr from,int flags){
 
 Socket::~Socket() {
   SKYLU_LOG_FMT_WARN(G_LOGGER,"Close socket fd = %d",m_fd);
-    close();
+  Fdmanager::FdMagr::GetInstance()->del(m_fd);
+  close();
 }
     ssize_t Socket::sendFile(const char *filename) {
       int filefd = open(filename,O_RDONLY);

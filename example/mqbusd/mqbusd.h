@@ -29,9 +29,7 @@ using namespace  skylu;
  */
 class MqBusd : Nocopyable{
 public:
-  typedef std::function<void(MqPacket *)> MqBusdMessageCallback;
   typedef TcpConnection::ConnectionCallback MqBusdConnectionCallback;
-  typedef TcpConnection::CloseCallback  MqBusdCloseCallback;
 
   MqBusd(EventLoop *loop,const std::vector<Address::ptr> & dir_addrs
          ,const std::string &name);

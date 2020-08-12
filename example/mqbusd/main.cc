@@ -30,9 +30,8 @@ std::string random_string( size_t length )
 
 int main(int argc,char **argv) {
 
-  // G_LOGGER->setLevel(LogLevel::INFO);
   if (argc < 2) {
-    std::cout << "please enter load yaml file . eg : consumer.yaml";
+    std::cout << "please enter load yaml file . eg : consumer.yaml"<<std::endl;
     exit(1);
   }
   YAML::Node config;
@@ -66,30 +65,40 @@ int main(int argc,char **argv) {
       consumer.subscribe(it);
     }
     if(config["MaxEnableBytes"]){
-      consumer.setMaxEnableBytes(config["MaxEnableBytes"].as<int>());
+      consumer.setMaxEnableBytes(config["MaxEnableBytes"].as<int>()*1024);
     }
+    bool isEcho = false;
+    if(config["EchoMessage"] && config["EchoMessage"].as<bool>()){
+      isEcho = true;
 
-    consumer.setPullCallback([&consumer](const Consumer::TopicMap &msg) {
-      for (const auto &it : msg) {
-        SKYLU_LOG_FMT_INFO(G_LOGGER, "recv topic: %s", it.first.c_str());
-        std::vector<uint64_t> vec;
-        for (const auto &i : it.second) {
-          if (vec.empty()) {
-            vec.push_back(i.offset);
-          } else {
-            if (vec.back() + 1 != i.offset) {
-              SKYLU_LOG_FMT_INFO(G_LOGGER,
-                                  "########offset = %d msg = %s msgID = %d",
-                                  i.offset, i.content.c_str(), i.messageId);
-              continue;
+    }
+    consumer.setPullCallback([&consumer,&isEcho](const Consumer::TopicMap &msg) {
+      static int64_t now = Timestamp::now().getMicroSeconds();
+      if(isEcho) {
+        for (const auto &it : msg) {
+          SKYLU_LOG_FMT_INFO(G_LOGGER, "recv topic: %s", it.first.c_str());
+          std::vector<uint64_t> vec;
+          for (const auto &i : it.second) {
+            if (vec.empty()) {
+              vec.push_back(i.offset);
+            } else {
+              if (vec.back() + 1 != i.offset) {
+                printf("################offset = %lu msg = %s msgID = %lu,interval = %ld\n",
+                       i.offset, i.content.c_str(), i.messageId,
+                       Timestamp::now().getMicroSeconds() - now);
+                continue;
+              }
+              vec.push_back(i.offset);
             }
-            vec.push_back(i.offset);
+            printf("////////offset = %lu msg = %s msgID = %lu,interval = %f\n",
+                   i.offset, i.content.c_str(), i.messageId,
+                   (Timestamp::now().getMicroSeconds() - now) *
+                       Timestamp::kSecondToMicroSeconds);
           }
-          SKYLU_LOG_FMT_INFO(G_LOGGER,
-                             "////////offset = %d msg = %s msgID = %d",
-                             i.offset, i.content.c_str(), i.messageId);
         }
       }
+      printf("*******interval = %f\n",(Timestamp::now().getMicroSeconds() - now) *
+                                      Timestamp::kSecondToMicroSeconds);
       consumer.commit();
     });
     consumer.poll();
@@ -97,7 +106,6 @@ int main(int argc,char **argv) {
   }
   else if (config["Type"].as<std::string>() == "producer") {
 
-    std::vector<int> statistical(config["Producer"].size(), 0);
     long double  total_time = 0;
     {
       std::vector<std::unique_ptr<ProducerWrap>> vec(config["Producer"].size());
@@ -116,7 +124,6 @@ int main(int argc,char **argv) {
             vec[i]->put(
                 config["Producer"][i]["topic"][j].as<std::string>(),
                 random_string(config["Producer"][i]["msgLength"].as<int>()));
-            statistical[i]++;
           }
         }
         vec[i]->send(true);
@@ -129,16 +136,17 @@ int main(int argc,char **argv) {
       for (const auto &it : vec) {
         total_time += it->startSendTime();
       }
-    }
     std::cout<<"*********Result************"<<std::endl;
     long double now = Timestamp::now().getMicroSeconds();
-    int producerNum =  statistical.size();
+    int producerNum =  vec.size();
     std::cout<<"avg interval =" <<
              (now  - total_time/producerNum ) * Timestamp::kSecondToMicroSeconds<<std::endl;
     for(size_t i = 0 ;i < config["Producer"].size(); ++i){
-      std::cout<<"ProducerName:"<<config["Producer"][i]["name"].as<std::string>()<<"   send msg count: "<<statistical[i]<<std::endl;
+      std::cout<<"ProducerName:"<<config["Producer"][i]["name"].as<std::string>()<<"   send count: "<<vec[i]->getSendCount()
+                <<" delivery successful : "<<vec[i]->getDeliverSuccessfulCount()<<std::endl;
     }
     std::cout<<"***************************"<<std::endl;
+    }
 
     ///消息发送完成后生产者线程退出去
   }

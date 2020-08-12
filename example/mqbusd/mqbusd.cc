@@ -3,7 +3,6 @@
 //
 
 #include "mqbusd.h"
-void fun(int a);
 
 MqBusd::MqBusd(EventLoop *loop,const std::vector<Address::ptr> &dir_addrs,
                const std::string &name)

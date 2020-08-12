@@ -83,7 +83,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         void send(const std::string & message);
         void send(const void *message,size_t len);
         void send(Buffer *buf);
-        void sendFile(const char * filename);
+        void sendFile(const std::string & path,off_t  offset,size_t len);
 
 
 
@@ -103,6 +103,7 @@ class TcpConnection :Nocopyable,public std::enable_shared_from_this<TcpConnectio
         void handleError();
 
         void sendInLoop(const void *data,size_t len);
+        void sendFileInLoop(const std::string & path,off_t  offset,size_t len);
         void shutdownInLoop();
 
         void setState(State s){m_state = s;}

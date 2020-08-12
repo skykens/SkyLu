@@ -151,6 +151,8 @@ void Consumer::pullInLoop() {
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull topic[%s|offset: %d]",it.first.c_str(),msg.offset);
     }else{
 
+      msg.offset = 0;
+      msg.topicBytes = 0;
       serializationToBuffer(&msg,buff);
       const auto & conne = it.second;
       SKYLU_LOG_FMT_DEBUG(G_LOGGER,"pull message to conne[%s]",conne->getName().c_str());
@@ -234,42 +236,48 @@ void Consumer::handlePull(const MqPacket *msg,const TcpConnection::ptr &conne) {
 void Consumer::connectToMqBroker() {
 
   static int i = 0;
-  for( auto &  topic : m_topic) {
-    ///topic.first = topic, second = host
+  for (auto &topic : m_topic) {
+    /// topic.first = topic, second = host
 
     for (auto it : m_mqserver_info_tmp) {
       /// it.first = host:port , second = std::unorder_map<topic,num>
       /// 添加最新的Client FIXME  这里会有性能的问题
-      if (it.second.find(topic.first) != it.second.end()){  ///找到有相关主题的broker 进行连接
+      if (it.second.find(topic.first) !=
+          it.second.end()) { ///找到有相关主题的broker 进行连接
 
-        topic.second =  it.first;
-        if(m_mqserver_clients.find(it.first) == m_mqserver_clients.end()) {
+        topic.second = it.first;
+        if (m_mqserver_clients.find(it.first) == m_mqserver_clients.end()) {
 
-              int flag = it.first.find(':');
-              std::string host(it.first.substr(0, flag++));
-              int port =
-                  atoi(it.first.substr(flag, it.first.size() - flag).c_str());
-              Address::ptr addr = IPv4Address::Create(host.c_str(), port);
-              m_mqserver_clients[it.first].reset(new TcpClient(
-                  m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
+          int flag = it.first.find(':');
+          std::string host(it.first.substr(0, flag++));
+          int port =
+              atoi(it.first.substr(flag, it.first.size() - flag).c_str());
+          Address::ptr addr = IPv4Address::Create(host.c_str(), port);
+          m_mqserver_clients[it.first].reset(new TcpClient(
+              m_loop, addr, "mqServerClient Id" + std::to_string(++i)));
 
-              SKYLU_LOG_FMT_INFO(G_LOGGER,
-                                 "initMqBrokerClients| client host : %s port : %d",
-                                 host.c_str(), port);
+          SKYLU_LOG_FMT_INFO(G_LOGGER,
+                             "initMqBrokerClients| client host : %s port : %d",
+                             host.c_str(), port);
 
-              m_mqserver_clients[it.first]->connect();
-              m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
-                  &Consumer::onConnectionToMqBroker, this, std::placeholders::_1));
-              m_mqserver_clients[it.first]->setMessageCallback(
-                  std::bind(&Consumer::onMessageFromMqBroker, this,
-                            std::placeholders::_1, std::placeholders::_2));
-              m_mqserver_clients[it.first]->setCloseCallback(std::bind(&Consumer::removeInvaildConnection,
-                                                                       this,std::placeholders::_1));
-        }else if(m_mqserver_clients[it.first]->getConnectorState() == Connector::kConnected
-                   && m_vaild_topic_conne.find(topic.first) == m_vaild_topic_conne.end()){
-          assert(m_vaild_topic_conne.find(topic.first) == m_vaild_topic_conne.end());
+          m_mqserver_clients[it.first]->connect();
+          m_mqserver_clients[it.first]->setConnectionCallback(std::bind(
+              &Consumer::onConnectionToMqBroker, this, std::placeholders::_1));
+          m_mqserver_clients[it.first]->setMessageCallback(
+              std::bind(&Consumer::onMessageFromMqBroker, this,
+                        std::placeholders::_1, std::placeholders::_2));
+          m_mqserver_clients[it.first]->setCloseCallback(std::bind(
+              &Consumer::removeInvaildConnection, this, std::placeholders::_1));
+        } else if (m_mqserver_clients[it.first]->getConnectorState() ==
+                       Connector::kConnected &&
+                   m_vaild_topic_conne.find(topic.first) ==
+                       m_vaild_topic_conne.end() &&
+                   m_mqserver_clients[it.first]->getConnection()) {
+          assert(m_vaild_topic_conne.find(topic.first) ==
+                 m_vaild_topic_conne.end());
           topic.second = it.first;
-          subscribeInLoop(topic.first,m_mqserver_clients[it.first]->getConnection());
+          subscribeInLoop(topic.first,
+                          m_mqserver_clients[it.first]->getConnection());
         }
       }
     }
@@ -288,6 +296,7 @@ void Consumer::removeInvaildConnection(const TcpConnection::ptr &conne)  {
   }
   for(const auto & it : invaild){
     m_vaild_topic_conne.erase(it);
+    SKYLU_LOG_FMT_ERROR(G_LOGGER,"erase topic[%s]'s conne[%s]",it.c_str(),conne->getName().c_str());
   }
 
 

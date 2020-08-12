@@ -9,7 +9,7 @@ DirServer:
   - addr: 127.0.0.1
     port: 6002
 ###LogLevel : UNKNOW < DEBUG < INFO < WARN < ERROR < FATAL
-LogLevel: ERROR
+LogLevel: DEBUG
 ###如果上面的Type为producer的话这里就是启动多个的生产者线程。 每个生产者的信息。 如果指定为producer-console则无效。
 Producer:
   - name: producer1
@@ -18,13 +18,13 @@ Producer:
       - hello1
       - hello2
     msgLength: 1024  # byte
-    totalLength: 64  # k
+    totalLength: 10240  # k
   - name: producer2
     topic:
       - hello3
       - hello4
     msgLength: 1024  # byte
-    totalLength: 64  # k
+    totalLength: 1024  # k
 
 
 
