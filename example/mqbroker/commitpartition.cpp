@@ -9,11 +9,11 @@ CommitPartition::CommitPartition(const std::string& name,const std::string & log
       ,m_thread(std::bind(&CommitPartition::persistentToDiskInThread,this),"CommitPartitionThread",true)
       ,isQuit(false),isDirty(false)
       {
-  init();
   SKYLU_LOG_NAME(kLoggerName)->clearAppenders();
   if(!kCommitPartitionLogName.empty()){
     SKYLU_LOG_NAME(kLoggerName)->addAppender(LogAppender::ptr(new FileLogAppender(kCommitPartitionLogName)));
   }
+  init();
 
 }
 CommitPartition::~CommitPartition() {
@@ -38,7 +38,7 @@ void CommitPartition::persistentToDiskInThread() {
     if(isQuit){
       break;
     }
-    SKYLU_LOG_DEBUG(SKYLU_LOG_NAME("commit logger"))<<"start persistent commit to disk . ";
+    SKYLU_LOG_DEBUG(SKYLU_LOG_NAME(kLoggerName))<<"start persistent commit to disk . ";
 
     if(File::isExits(kCommitPartitionbakFilename)){
       File::remove(kCommitPartitionbakFilename);
@@ -57,7 +57,7 @@ void CommitPartition::persistentToDiskInThread() {
         stream << it.first << ':' << item.first << ':' << item.second
                << '\n'; //// id:topic:offset
         buffer.append(stream.str());
-        SKYLU_LOG_DEBUG(SKYLU_LOG_NAME("commit logger"))<<" commit info : ["<< stream.str()<<"]";
+        SKYLU_LOG_INFO(SKYLU_LOG_NAME(kLoggerName))<<" commit info : ["<< stream.str()<<"]";
       }
     }
     file->write(buffer.curRead(), buffer.readableBytes());
@@ -65,7 +65,7 @@ void CommitPartition::persistentToDiskInThread() {
     File::rename(kCommitPartitionbakFilename,kCommitPartitionFilename);
   }
 
-  SKYLU_LOG_WARN(SKYLU_LOG_NAME("commit logger"))<<" commit Thread exit .";
+  SKYLU_LOG_WARN(SKYLU_LOG_NAME(kLoggerName))<<" commit Thread exit .";
 
 }
 uint64_t CommitPartition::getOffset(int id,const std::string &topic) {
@@ -103,7 +103,7 @@ void CommitPartition::init() {
       if(m_infos.find(id) == m_infos.end()){
         m_infos.insert({id,CommitInfo()});
       }
-      SKYLU_LOG_FMT_DEBUG(G_LOGGER,"init commitOffset[%d:%s:%d]",id,topic.c_str(),offset);
+      SKYLU_LOG_FMT_INFO(SKYLU_LOG_NAME(kLoggerName),"init commitOffset[%d:%s:%d]",id,topic.c_str(),offset);
       m_infos[id].commitOffset(topic,offset);
     }
   }

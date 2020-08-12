@@ -48,14 +48,19 @@ void Partition::addToLog(Buffer *msg) {
   char  * src = const_cast<char *>(msg->curRead());
   for(size_t i = position; i - position < msg->readableBytes();){
     auto * m = reinterpret_cast<MqPacket* >(src);
-    int len = MqPacketLength(m);
+    size_t len = MqPacketLength(m);
+    if(msg->readableBytes()!=len ||!checkMqPacketEnd(m)){
+      return ;
+
+    }
     m->command = MQ_COMMAND_PULL;
     m->offset = m_size;  ///序号
     src += len;
     i +=len;
     m_size ++;
+    assert(checkMqPacketEnd(m));
     uint64_t in_file_offset = m_size - m_indexs.rbegin()->first;
-    if(len > kMsgblockMaxSize || in_file_offset > m_lastOffsetIndexInFile + kIndexMinInterval
+    if(len > (size_t)kMsgblockMaxSize || in_file_offset > m_lastOffsetIndexInFile + kIndexMinInterval
         || in_file_offset == 0){
       m_lastOffsetIndexInFile = in_file_offset;
       m_indexs.rbegin()->second.insert({in_file_offset, position});
@@ -139,7 +144,7 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
   if(it==m_indexs.end()){
     --it;
   }
-  if(it->first != offset && it != m_indexs.begin()){
+  if(it->first != offset && it != m_indexs.begin() && it->first > offset){
     --it;
   }
   std::string filename = m_prefix+std::to_string(it->first) + ".log";
@@ -164,8 +169,8 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
     }
   }
   uint64_t indexInFile = offset - it->first; /// 需要查找的索引在文件中的索引量
-  uint64_t  index = -1;
-  long position = 0; ///记录在索引文件中的值
+  uint64_t  index = 0;
+  uint64_t position = 0; ///记录在索引文件中的值
   auto line  = it->second.lower_bound(indexInFile); ///定位到的索引位置  offset-position
   if(line != it->second.end()) {
     if (line->first != indexInFile) {
@@ -192,12 +197,13 @@ uint64_t Partition::sendToConsumer(const MqPacket *info,
 
     for (uint64_t i = index; i < indexInFile; ++i) {
       auto *msg = reinterpret_cast<MqPacket *>(content);
-      int length = MqPacketLength(msg);
+      size_t length = MqPacketLength(msg);
+      assert(position + length < ksingleFileMaxSize);
       content += length;
-      position += length;
+      position += static_cast<uint64_t>(length);
       ///向下遍历找到需要发送的消息的消息
     }
-  int eofPosition = position;
+  uint64_t eofPosition = position;
 
   auto * tmp = content;
   int count = 0 ; ///发送了多少个包
