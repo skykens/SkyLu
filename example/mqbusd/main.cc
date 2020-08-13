@@ -134,13 +134,12 @@ int main(int argc,char **argv) {
         it->wait();
       }
       for (const auto &it : vec) {
-        total_time += it->startSendTime();
+        total_time +=it->endSendTime()-it->startSendTime();
       }
     std::cout<<"*********Result************"<<std::endl;
-    long double now = Timestamp::now().getMicroSeconds();
     int producerNum =  vec.size();
     std::cout<<"avg interval =" <<
-             (now  - total_time/producerNum ) * Timestamp::kSecondToMicroSeconds<<std::endl;
+             (total_time/producerNum ) * Timestamp::kSecondToMicroSeconds<<std::endl;
     for(size_t i = 0 ;i < config["Producer"].size(); ++i){
       std::cout<<"ProducerName:"<<config["Producer"][i]["name"].as<std::string>()<<"   send count: "<<vec[i]->getSendCount()
                 <<" delivery successful : "<<vec[i]->getDeliverSuccessfulCount()<<std::endl;

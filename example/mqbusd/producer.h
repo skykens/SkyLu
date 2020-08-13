@@ -66,6 +66,7 @@ public:
       Mutex::Lock lock(m_mutex);
       while(!queue.empty()||!m_send_queue.empty() || !m_resend_set.empty())
         m_empty_queueAndsResend.wait();
+      m_end_send_time = Timestamp::now().getMicroSeconds();
     }
 
   }
@@ -74,7 +75,8 @@ public:
    * 开始发送消息的时间
    * @return
    */
-  int64_t  startSendTime(){return m_begin_send_time;}
+  int64_t  startSendTime()const {return m_begin_send_time;}
+  int64_t  endSendTime()const {return m_end_send_time;}
   uint64_t getSendCount()const {return m_send_count;}
   uint64_t getDeliverSuccessfulCount()const {return m_deliver_successful_count;}
 
@@ -113,8 +115,9 @@ private:
   consistent_hash_map<> m_hashHost;
   std::unordered_map<std::string,TcpConnection::ptr > m_vaild_conne;
   int64_t  m_begin_send_time = 0;
-  uint64_t  m_send_count = 0; ///计算总共发送数量
-  uint64_t  m_deliver_successful_count = 0;///投递成功数量
+  int64_t  m_end_send_time = 0;
+ volatile uint64_t  m_send_count = 0; ///计算总共发送数量
+ volatile uint64_t  m_deliver_successful_count = 0;///投递成功数量
 };
 
 /**
@@ -135,7 +138,8 @@ public:
   void start(){produce->start();}
   void wait(){produce->wait();}
   std::string getName()const {return produce->getName();}
-  int64_t  startSendTime(){return produce->startSendTime();}
+  int64_t  startSendTime()const {return produce->startSendTime();}
+  int64_t  endSendTime()const {return produce->endSendTime();}
 
   uint64_t getSendCount()const {return produce->getSendCount();}
   uint64_t getDeliverSuccessfulCount()const {return produce->getDeliverSuccessfulCount();}
